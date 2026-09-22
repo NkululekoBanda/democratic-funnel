@@ -1,0 +1,19 @@
+# Data never goes to Git (it lives on Drive); only the folder skeleton is kept
+data/**/*
+!data/**/
+!data/**/.gitkeep
+models/*
+!models/.gitkeep
+reports/figures/*
+!reports/figures/.gitkeep
+
+# Environments / editors
+venv/
+.venv/
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+.env

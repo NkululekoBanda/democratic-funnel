@@ -1,0 +1,11 @@
+source_id,name,url,raw_folder,accessed_date,snapshot_date,notes
+iec_lge,IEC municipal (LGE) election results 2011/2016/2021,https://results.elections.org.za/home/downloads/me-results,iec_lge,,,PR ballot; municipality level
+iec_npe,IEC national/provincial results incl. 2024,https://results.elections.org.za/home/downloads/npe-results,iec_npe,,,post-COVID turnout signal
+iec_byelections,IEC municipal by-election results,https://results.elections.org.za/home/downloads/mbe-results,iec_byelections,,,Nov 2021 onwards
+registration,IEC voter registration statistics dashboard,https://www.elections.org.za/pw/StatsData/Voter-Registration-Statistics,registration,,,dashboard updates daily - record snapshot date
+party_stats,IEC party registration statistics,https://www.elections.org.za/pw/StatsData/Political-Parties-Statistics,party_stats,,,
+ward_councillors,IEC list of current ward councillors,https://www.elections.org.za/pw/StatsData/List-Of-Current-Ward-Councillors,ward_councillors,,,
+lge_atlas,IEC atlas of municipal results,https://atlas.elections.org.za/lgeatlas/,boundaries,,,
+candidate_lists,IEC LGE 2026 candidate lists,,candidate_lists,,,PERSONAL DATA - counts only; add URL
+census_2022,Stats SA Census 2022 (adjusted figures),,census,,,add exact table URLs; citizens 18+ and 18-29
+boundaries,Municipal Demarcation Board boundaries,http://www.demarcation.org.za/site/,boundaries,,,add exact file URL and boundary year

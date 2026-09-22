@@ -1,0 +1,20 @@
+# Core (versions: lower bounds; exact versions are logged to docs/environment.json by 00_setup)
+pandas>=2.1
+numpy>=1.26
+scikit-learn>=1.4
+matplotlib>=3.8
+seaborn>=0.13
+openpyxl>=3.1
+xlrd>=2.0            # old .xls files
+requests>=2.31
+beautifulsoup4>=4.12
+pdfplumber>=0.11
+# Modelling
+statsmodels>=0.14    # hierarchical / mixed-effects model
+lightgbm>=4.0
+shap>=0.45
+# Geography + dashboard
+geopandas>=0.14
+plotly>=5.18
+streamlit>=1.35
+joblib>=1.3
