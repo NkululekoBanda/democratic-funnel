@@ -2,7 +2,7 @@
 File reading helpers and the raw-data inventory.
 
 IEC / Stats SA files are messy:
-  * CSVs may be UTF-8 with a BOM, or Latin-1, and may use ';' as delimiter
+  * CSVs may be UTF-16 (IEC 2011 results), UTF-8 with a BOM, or Latin-1, and may use ';' as delimiter
   * Excel reports often have title rows above the real header, and several sheets
 These helpers handle all three.
 """
@@ -13,6 +13,7 @@ import pandas as pd
 from .config import RAW
 
 ENCODINGS = ("utf-8-sig", "latin-1")   # utf-8-sig also reads plain UTF-8; latin-1 never fails
+UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
 HEADER_KEYWORDS = ("municipal", "province", "ward", "registered", "votes", "party",
                    "voting district", "age", "code", "name", "population")
 
@@ -26,12 +27,22 @@ def _sniff_sep(path: Path, encoding: str) -> str:
     return max(counts, key=counts.get)
 
 
+def _encodings(path: Path) -> tuple:
+    """Encodings to try, in order. UTF-16 is detected from its BOM first, because
+    latin-1 'reads' a UTF-16 file without error but returns garbage column names."""
+    with open(path, "rb") as fh:
+        if fh.read(2) in UTF16_BOMS:
+            return ("utf-16",)
+    return ENCODINGS
+
+
 def read_csv_any(path, **kwargs) -> pd.DataFrame:
     path = Path(path)
     last_err = None
-    for enc in ENCODINGS:
+    sep_arg = kwargs.pop("sep", None)
+    for enc in _encodings(path):
         try:
-            sep = kwargs.pop("sep", None) or _sniff_sep(path, enc)
+            sep = sep_arg or _sniff_sep(path, enc)
             return pd.read_csv(path, encoding=enc, sep=sep, **kwargs)
         except UnicodeDecodeError as e:
             last_err = e
