@@ -1,6 +1,7 @@
+# DIRISA colours: orange accent (#ee7900) and charcoal (#313131), from dirisa.ac.za
 [theme]
 base = "light"
-primaryColor = "#2a78d6"
-backgroundColor = "#fcfcfb"
-secondaryBackgroundColor = "#f3f2ee"
-textColor = "#0b0b0b"
+primaryColor = "#ee7900"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f3f0"
+textColor = "#313131"

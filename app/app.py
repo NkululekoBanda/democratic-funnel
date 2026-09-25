@@ -26,8 +26,12 @@ LEAK_COLOURS = {
     "No leak": "#dcdbd5",
 }
 LEAK_ORDER = list(LEAK_COLOURS)
-BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
-FUNNEL_STEPS = ["#86b6ef", "#3987e5", "#1c5cab"]          # ordinal: eligible -> registered -> voters
+# DIRISA brand (dirisa.ac.za): orange accent and charcoal. The orange is used for marks and accents,
+# never for small text (2.85:1 on white); text stays charcoal.
+BRAND = "#ee7900"
+CHARCOAL = "#313131"
+ORANGE_RAMP = ["#fdebd9", "#fbd0a6", "#f7ad6b", "#ee7900", "#c96500", "#9a4d00", "#6b3500"]
+FUNNEL_STEPS = ["#f5a35a", "#ee7900", "#a95400"]          # ordinal: eligible -> registered -> voters
 MUTED = "#898781"
 GRID = "#e1e0d9"
 
@@ -95,7 +99,9 @@ if not (ARTIFACTS / "master.csv").exists():
 master, pred, geo = load()
 
 # 2026 forecast under the chosen scenario, with the model's range shifted to match
-st.sidebar.title("🗳️ Democratic Funnel")
+st.sidebar.markdown(f"<h2 style='color:{CHARCOAL};margin-bottom:0'>🗳️ Democratic Funnel</h2>"
+                    f"<div style='height:4px;width:56px;background:{BRAND};margin:6px 0 14px'></div>",
+                    unsafe_allow_html=True)
 scenario = st.sidebar.radio(
     "2026 turnout scenario", list(SCENARIOS),
     help="2021 was the COVID election. The scenario sets how much national turnout recovers by 2026; "
@@ -118,8 +124,14 @@ def in_province(df):
 
 
 # ------------------------------------------------------------------ header
-st.title("The Democratic Funnel")
-st.caption("Where local democracy leaks before the local government elections on 4 November 2026")
+st.markdown(f"""
+<div style="background:{CHARCOAL};border-bottom:5px solid {BRAND};border-radius:6px;padding:20px 24px;margin-bottom:18px">
+  <div style="color:{BRAND};font-size:0.8rem;letter-spacing:0.12em;font-weight:600">
+    DIRISA STUDENT DATATHON CHALLENGE 2026 · TEAM UL</div>
+  <div style="color:#ffffff;font-size:2.1rem;font-weight:700;line-height:1.2;margin-top:4px">The Democratic Funnel</div>
+  <div style="color:#d9d6d0;font-size:1rem;margin-top:4px">
+    Where local democracy leaks before the local government elections on 4 November 2026</div>
+</div>""", unsafe_allow_html=True)
 
 p26 = in_province(pred)
 m21 = in_province(master[master["election"] == 2021])
@@ -170,7 +182,7 @@ with tab_map:
             fig = px.choropleth(d, color="Leak type", color_discrete_map=LEAK_COLOURS,
                                 category_orders={"Leak type": LEAK_ORDER}, **common)
         else:
-            fig = px.choropleth(d, color=measure, color_continuous_scale=BLUE_RAMP, **common)
+            fig = px.choropleth(d, color=measure, color_continuous_scale=ORANGE_RAMP, **common)
             fig.update_coloraxes(colorbar=dict(tickformat=".0%", title=None, thickness=12))
         fig.update_traces(marker_line_color="white", marker_line_width=0.4)
         fig.update_geos(fitbounds="locations", visible=False)
@@ -252,12 +264,12 @@ with tab_profile:
                                  hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
         past = hist[hist["election"] < 2026]
         fig.add_trace(go.Scatter(x=past["election"], y=past["t"], name=row["muni_name"], mode="lines+markers",
-                                 line=dict(color=LEAK_COLOURS["Registration leak"], width=2),
+                                 line=dict(color=BRAND, width=2),
                                  marker=dict(size=9, line=dict(width=2, color="white")),
                                  hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
         fig.add_trace(go.Scatter(
             x=[2021, 2026], y=[row["t_2021"], row["t_fc"]], name="2026 forecast", mode="lines+markers",
-            line=dict(color=LEAK_COLOURS["Registration leak"], width=2, dash="dash"),
+            line=dict(color=BRAND, width=2, dash="dash"),
             marker=dict(size=[0, 10], symbol="diamond"),
             error_y=dict(type="data", symmetric=False, array=[0, row["t_fc_high"] - row["t_fc"]],
                          arrayminus=[0, row["t_fc"] - row["t_fc_low"]], color=MUTED, thickness=2, width=6),
@@ -301,7 +313,7 @@ with tab_gap:
 
     top = g.nlargest(15, "registrations_needed").sort_values("registrations_needed")
     fig = go.Figure(go.Bar(x=top["registrations_needed"], y=top["muni_name"], orientation="h",
-                           marker_color=LEAK_COLOURS["Registration leak"],
+                           marker_color=BRAND,
                            text=[num(v) for v in top["registrations_needed"]], textposition="outside",
                            cliponaxis=False, hovertemplate="%{y}: %{x:,.0f} registrations<extra></extra>"))
     fig.update_layout(title="Largest registration gaps")
