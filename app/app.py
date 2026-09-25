@@ -133,23 +133,102 @@ st.markdown(f"""
     Where local democracy leaks before the local government elections on 4 November 2026</div>
 </div>""", unsafe_allow_html=True)
 
+# ------------------------------------------------------------------ turnout for every election
 p26 = in_province(pred)
-m21 = in_province(master[master["election"] == 2021])
-k = st.columns(4)
-tile(k[0], "Eligible adults (citizens 18+)", num(p26["eligible_adults"].sum()))
-tile(k[1], "Registered for 2026", num(p26["registered_2026"].sum()),
-            f"{p26['registered_2026'].sum() / p26['eligible_adults'].sum():.0%} of eligible adults")
-tile(k[2], "Turnout 2021", pct(m21["votes_cast"].sum() / m21["registered"].sum()))
-t_nat = (p26["t_fc"] * p26["registered_2026"]).sum() / p26["registered_2026"].sum()
-tile(k[3], "Forecast turnout 2026", pct(t_nat), scenario.split(" (")[0])
+past = in_province(master[master["election"] < 2026]).groupby("election")[["votes_cast", "registered"]].sum()
+history = pd.DataFrame({
+    "election": [2011, 2016, 2021, 2026],
+    "registered": [*past["registered"], p26["registered_2026"].sum()],
+    "turnout": [*(past["votes_cast"] / past["registered"]),
+                (p26["t_fc"] * p26["registered_2026"]).sum() / p26["registered_2026"].sum()],
+})
+area = "South Africa" if province == "All provinces" else province
 
-tab_map, tab_profile, tab_gap, tab_about = st.tabs(
-    ["Funnel map", "Municipality profile", "Gap to target", "About"])
+st.markdown(f"**Turnout in local government elections — {area}**")
+k = st.columns(4)
+for col, (_, h) in zip(k, history.iterrows()):
+    label = "2026 (forecast)" if h["election"] == 2026 else str(int(h["election"]))
+    note = scenario.split(" (")[0] if h["election"] == 2026 else f"{num(h['registered'])} registered"
+    tile(col, label, pct(h["turnout"]), note)
+
+tab_overview, tab_map, tab_profile, tab_gap, tab_about = st.tabs(
+    ["Overview", "Funnel map", "Municipality profile", "Gap to target", "About"])
+
+# ================================================================== 0. overview
+with tab_overview:
+    st.markdown(
+        "**How to use this dashboard.** Start here for the big picture. **Funnel map** shows where people are "
+        "lost, municipality by municipality. **Municipality profile** looks at one place in detail, including its "
+        "2026 forecast. **Gap to target** shows how many registrations or voters each municipality is short. "
+        "Use the sidebar to pick a province or a 2026 scenario — every page updates.")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Turnout at every election")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=history["election"][:3], y=history["turnout"][:3], name="Actual",
+                                 mode="lines+markers+text", text=[pct(v) for v in history["turnout"][:3]],
+                                 textposition="top center", line=dict(color=BRAND, width=2),
+                                 marker=dict(size=10, line=dict(width=2, color="white")),
+                                 hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
+        scen = {name: (pd.Series(p26[col]) * p26["registered_2026"]).sum() / p26["registered_2026"].sum()
+                for name, col in SCENARIOS.items()}
+        fig.add_trace(go.Scatter(x=[2021, 2026], y=[history["turnout"][2], history["turnout"][3]],
+                                 name=f"2026 forecast ({scenario.split(' (')[0].lower()})",
+                                 mode="lines+markers+text", text=["", pct(history["turnout"][3])],
+                                 textposition="top center", line=dict(color=BRAND, width=2, dash="dash"),
+                                 marker=dict(size=[0, 11], symbol="diamond"),
+                                 hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
+        lo, hi = min(scen.values()), max(scen.values())
+        fig.add_trace(go.Scatter(x=[2026, 2026], y=[lo, hi], name="Range of scenarios", mode="lines",
+                                 line=dict(color=MUTED, width=6), opacity=0.45,
+                                 hovertemplate="Scenario range: %{y:.1%}<extra></extra>"))
+        fig.update_yaxes(tickformat=".0%", title="Turnout (share of registered voters)",
+                         range=[min(history["turnout"].min(), lo) - 0.06, max(history["turnout"].max(), hi) + 0.06])
+        fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
+        st.plotly_chart(style(fig, 380), use_container_width=True)
+        st.caption(f"Turnout was steady in 2011 and 2016, then fell sharply in 2021 (the COVID election). "
+                   f"For 2026 the grey bar shows the scenarios: {pct(lo)} if turnout does not recover, "
+                   f"{pct(hi)} if it fully returns to the 2016 level.")
+
+    with right:
+        st.subheader("Registered voters at every election")
+        fig = go.Figure(go.Bar(x=history["election"].astype(str), y=history["registered"],
+                               marker_color=[BRAND, BRAND, BRAND, "#f5a35a"],
+                               text=[f"{v / 1e6:.1f} m" if area == "South Africa" else num(v)
+                                     for v in history["registered"]],
+                               textposition="outside", cliponaxis=False,
+                               hovertemplate="%{x}: %{y:,.0f} registered<extra></extra>"))
+        fig.update_yaxes(title="Registered voters", range=[0, history["registered"].max() * 1.18])
+        fig.update_xaxes(title=None, type="category")
+        st.plotly_chart(style(fig, 380), use_container_width=True)
+        elig = p26["eligible_adults"].sum()
+        st.caption(f"{num(p26['registered_2026'].sum())} people are registered for 2026, out of "
+                   f"{num(elig)} eligible adults (Census 2022): {p26['registered_2026'].sum() / elig:.0%}. "
+                   f"The other {num(elig - p26['registered_2026'].sum())} are the registration leak.")
+
+    st.subheader("Turnout by province, every election")
+    by_prov = master[master["election"] < 2026].groupby(["province", "election"])[["votes_cast", "registered"]].sum()
+    by_prov = (by_prov["votes_cast"] / by_prov["registered"]).unstack("election")
+    fc = pred.groupby("province").apply(lambda g: (g["t_fc"] * g["registered_2026"]).sum() / g["registered_2026"].sum())
+    by_prov["2026 forecast"] = fc
+    by_prov.columns = [str(c) for c in by_prov.columns]
+    by_prov = by_prov * 100                                   # show as percentages with one decimal
+    by_prov["Change 2016 → 2021"] = by_prov["2021"] - by_prov["2016"]
+    by_prov = by_prov.sort_values("2021").reset_index()
+    st.dataframe(by_prov, hide_index=True, use_container_width=True,
+                 column_config={"province": "Province",
+                                **{c: st.column_config.NumberColumn(c, format="%.1f%%")
+                                   for c in ["2011", "2016", "2021", "2026 forecast"]},
+                                "Change 2016 → 2021": st.column_config.NumberColumn(
+                                    "Change 2016 → 2021", format="%+.1f points")})
+    st.caption("Turnout = votes cast ÷ registered voters (ward ballot). 2011 figures are on today's municipal "
+               "boundaries. The 2026 forecast follows the scenario chosen in the sidebar.")
 
 # ================================================================== 1. funnel map
 with tab_map:
     c1, c2 = st.columns([1, 1])
-    year = c1.radio("Election", ["2021", "2016", "2026 forecast"], horizontal=True)
+    year = c1.radio("Election", ["2011", "2016", "2021", "2026 forecast"], index=2, horizontal=True)
     measure = c2.radio("Colour by", ["Leak type", "Turnout", "Registration rate", "Real participation"],
                        horizontal=True)
 
