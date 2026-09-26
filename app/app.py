@@ -431,6 +431,25 @@ def profile():
                 factors.append(f"holding turnout up: **{row['Main factor holding turnout up']}**")
             if factors:
                 st.markdown("What the model links with this forecast — " + "; ".join(factors) + ".")
+            effects = pd.Series({c.removeprefix("Effect on turnout: "): row[c] for c in d.columns
+                                 if c.startswith("Effect on turnout: ") and pd.notna(row[c])}).sort_values()
+            if len(effects):
+                fig = go.Figure(go.Bar(x=effects.values * 100, y=effects.index, orientation="h",
+                                       marker_color=[CRIMSON if v < 0 else GREEN for v in effects.values],
+                                       hovertemplate="%{y}: %{x:+.1f} points<extra></extra>"))
+                fig.update_layout(title=dict(text="Why this forecast: points down (−) or up (+) against the national "
+                                                  "change", font=dict(size=15)))
+                fig.add_vline(x=0, line_color=INK2, line_width=1)
+                chart(fig, 90 + 30 * len(effects))
+            covid = row.get("After COVID (2024)")
+            if isinstance(covid, str):
+                how = ("did relatively better in the 2024 national election than in 2021, so 2021 probably "
+                       "understated it" if covid.startswith("recovered") else
+                       "fell further behind the rest of the country in the 2024 national election "
+                       "than it usually does")
+                st.markdown(f"**After COVID: {covid}.** This municipality {how}. If that carries into 2026, "
+                            f"turnout would be about **{pct(row['Predicted turnout 2026 (COVID recovery)'], 1)}** "
+                            "(COVID recovery scenario).")
             if str(row["Worse than expected in 2021"]) == "True":
                 st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
                         "Something local happened that our data cannot see.", icon="🔎")
@@ -503,7 +522,7 @@ registered; **real participation** = registration rate × turnout. Each municipa
 **typical (median) municipality**, which places it in one of four problem groups.
 
 ### How the prediction works, in plain words
-2026 turnout = 2021 turnout + a **national recovery** from the COVID drop + an **adjustment** for each municipality.
+2026 turnout = 2021 turnout + a **national change**, taken from turnout in the 2024 national election, + an **adjustment** for each municipality.
 The adjustment comes from a statistical model (a hierarchical regression, with municipalities grouped inside
 provinces) that learned how turnout changed between 2011, 2016 and 2021. We tested it by training on
 2011 → 2016 and predicting 2016 → 2021. Most of the change between elections is national, so every prediction
@@ -513,6 +532,7 @@ comes with a **range**, not a single number.
 | Source | Used for |
 |---|---|
 | IEC municipal election results 2011, 2016, 2021 | registered voters, votes cast, turnout |
+| IEC national election results 2024 | the national change in turnout expected for 2026 |
 | IEC voter registration statistics, September 2026 | the 2026 roll, including ages 18–29 |
 | Stats SA Census 2022 | adults who may vote (citizens 18+), services, education |
 | Municipal Demarcation Board | boundaries, area, neighbours |
