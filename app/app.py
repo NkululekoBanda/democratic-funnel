@@ -431,6 +431,16 @@ def profile():
                 factors.append(f"holding turnout up: **{row['Main factor holding turnout up']}**")
             if factors:
                 st.markdown("What the model links with this forecast — " + "; ".join(factors) + ".")
+            effects = pd.Series({c.removeprefix("Effect on turnout: "): row[c] for c in d.columns
+                                 if c.startswith("Effect on turnout: ") and pd.notna(row[c])}).sort_values()
+            if len(effects):
+                fig = go.Figure(go.Bar(x=effects.values * 100, y=effects.index, orientation="h",
+                                       marker_color=[CRIMSON if v < 0 else GREEN for v in effects.values],
+                                       hovertemplate="%{y}: %{x:+.1f} points<extra></extra>"))
+                fig.update_layout(title=dict(text="Why this forecast: points down (−) or up (+) against the national "
+                                                  "change", font=dict(size=15)))
+                fig.add_vline(x=0, line_color=INK2, line_width=1)
+                chart(fig, 90 + 30 * len(effects))
             covid = row.get("After COVID (2024)")
             if isinstance(covid, str):
                 how = ("did relatively better in the 2024 national election than in 2021, so 2021 probably "
