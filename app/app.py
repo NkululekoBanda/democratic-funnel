@@ -1,83 +1,69 @@
-"""The Democratic Funnel - interactive dashboard.
+"""The Democratic Funnel - dashboard.
 
-Run locally:   streamlit run app/app.py
-Data:          app/artifacts/ (made by app/prepare_artifacts.py after 08_model)
+Reads only app/artifacts/dashboard.csv and app/artifacts/municipalities.geojson
+(both written by notebooks/09_dashboard_prep.ipynb). No cleaning or modelling happens here.
+
+Run locally:  streamlit run app/app.py
 """
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
+ART = Path(__file__).resolve().parent / "artifacts"
+st.set_page_config(page_title="The Democratic Funnel", page_icon="🗳️", layout="wide",
+                   initial_sidebar_state="collapsed")
 
-st.set_page_config(page_title="Democratic Funnel", page_icon="🗳️", layout="wide")
-
-# ------------------------------------------------------------------ colours
-# Leak types: the first three categorical slots (validated colour-blind safe as a set) plus a
-# light neutral for "no leak", which should recede rather than compete.
-LEAK_COLOURS = {
-    "Registration leak": "#2a78d6",
-    "Turnout leak": "#eb6834",
-    "Both leaks": "#1baf7a",
-    "No leak": "#dcdbd5",
+# ------------------------------------------------------------------ house style (same as 07_eda)
+BLUE, AMBER, CRIMSON, GREEN, NAVY = "#2a78d6", "#eda100", "#a3143a", "#7bc586", "#1b2f5b"
+DIRISA_ORANGE = "#ee7900"
+INK, INK2, GRID = "#0b0b0b", "#4a4a47", "#e4e3de"
+GROUPS = ["Low registration", "Low turnout", "Both low", "Healthy"]
+GROUP_COLOURS = {"Low registration": BLUE, "Low turnout": AMBER, "Both low": CRIMSON, "Healthy": GREEN}
+GROUP_MEANING = {
+    "Low registration": "below a typical municipality on registration — but those who are registered, vote",
+    "Low turnout": "well registered — but fewer registered voters turn out than in a typical municipality",
+    "Both low": "below a typical municipality at both stages: registering and voting",
+    "Healthy": "at or above a typical municipality on both registration and turnout",
 }
-LEAK_ORDER = list(LEAK_COLOURS)
-# DIRISA brand (dirisa.ac.za): orange accent and charcoal. The orange is used for marks and accents,
-# never for small text (2.85:1 on white); text stays charcoal.
-BRAND = "#ee7900"
-CHARCOAL = "#313131"
-ORANGE_RAMP = ["#fdebd9", "#fbd0a6", "#f7ad6b", "#ee7900", "#c96500", "#9a4d00", "#6b3500"]
-FUNNEL_STEPS = ["#f5a35a", "#ee7900", "#a95400"]          # ordinal: eligible -> registered -> voters
-MUTED = "#898781"
-GRID = "#e1e0d9"
+NOT_A_CAUSE = "A link is not proof of a cause: patterns across municipalities cannot show why individuals act."
 
-SCENARIOS = {
-    "Half recovery (central)": "t_2026_half_recovery",
-    "No recovery": "t_2026_no_recovery",
-    "Full recovery": "t_2026_full_recovery",
-}
-FACTOR_NOTE = "Factors are associations across municipalities, not proven causes."
+st.markdown(f"""
+<style>
+  html, body, [class*="css"] {{ font-size: 17px; }}
+  .block-container {{ padding-top: 3.2rem; max-width: 1200px; }}
+  .card {{ border: 1px solid {GRID}; border-radius: 10px; padding: 16px 18px; height: 100%; background: #fff; }}
+  .card .big {{ font-size: 2.3rem; font-weight: 700; line-height: 1.1; color: {INK}; }}
+  .card .small {{ font-size: 0.98rem; color: {INK2}; margin-top: 6px; line-height: 1.35; }}
+  .pill {{ display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.95rem; }}
+  .box {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; border-radius: 6px;
+          margin: 8px 0 14px; line-height: 1.5; }}
+  @media (max-width: 640px) {{ .card .big {{ font-size: 1.8rem; }} }}
+</style>
+""", unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------------ data
 @st.cache_data
 def load():
-    master = pd.read_csv(ARTIFACTS / "master.csv")
-    pred = pd.read_csv(ARTIFACTS / "predictions_2026.csv")
-    geo_path = ARTIFACTS / "municipalities.geojson"
+    d = pd.read_csv(ART / "dashboard.csv")
+    geo_path = ART / "municipalities.geojson"
     geo = json.loads(geo_path.read_text(encoding="utf-8")) if geo_path.exists() else None
-    # Some IEC names are in capitals (e.g. "KAREEBERG"): title-case those only, keep "eThekwini" as is
-    fix = lambda s: s.where(~s.str.isupper(), s.str.title())
-    master["muni_name"] = fix(master.groupby("muni_code")["muni_name"].transform("last"))
-    pred["muni_name"] = fix(pred["muni_name"])
-    return master, pred, geo
+    return d, geo
 
 
-def leak_type(reg_leak, turn_leak):
-    """Below-median registration and/or turnout -> leak type."""
-    return np.select(
-        [(reg_leak < 0) & (turn_leak < 0), reg_leak < 0, turn_leak < 0],
-        ["Both leaks", "Registration leak", "Turnout leak"],
-        "No leak",
-    )
+if not (ART / "dashboard.csv").exists():
+    st.error("app/artifacts/dashboard.csv is missing. Run notebooks/09_dashboard_prep.ipynb first.")
+    st.stop()
+
+d, geo = load()
+HAS_PRED = d["Predicted turnout 2026"].notna().all()
+TURNOUT_LABEL = "Predicted turnout 2026" if HAS_PRED else "Turnout 2021"
 
 
-def style(fig, height=380):
-    fig.update_layout(height=height, margin=dict(l=10, r=10, t=40, b=10),
-                      plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(family="system-ui, -apple-system, Segoe UI, sans-serif", size=13),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title=None),
-                      hoverlabel=dict(font_size=13))
-    fig.update_xaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
-    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
-    return fig
-
-
-def pct(x, digits=1):
+def pct(x, digits=0):
     return "–" if pd.isna(x) else f"{x * 100:.{digits}f}%"
 
 
@@ -85,376 +71,355 @@ def num(x):
     return "–" if pd.isna(x) else f"{x:,.0f}".replace(",", " ")
 
 
-def tile(col, label, value, note=None):
-    """A headline number with an optional plain note underneath (not a +/- change)."""
+def millions(x):
+    return f"{x / 1e6:.1f} m"
+
+
+def wavg(df, col, weight="Registered 2026"):
+    return (df[col] * df[weight]).sum() / df[weight].sum()
+
+
+def card(col, big, small):
+    col.markdown(f"<div class='card'><div class='big'>{big}</div><div class='small'>{small}</div></div>",
+                 unsafe_allow_html=True)
+
+
+def stat(col, label, value, note):
     col.metric(label, value)
-    if note:
-        col.caption(note)
+    col.caption(note)
 
 
-if not (ARTIFACTS / "master.csv").exists():
-    st.error("No data found in app/artifacts/. Run `python app/prepare_artifacts.py` after 08_model.")
-    st.stop()
-
-master, pred, geo = load()
-
-# 2026 forecast under the chosen scenario, with the model's range shifted to match
-st.sidebar.markdown(f"<h2 style='color:{CHARCOAL};margin-bottom:0'>🗳️ Democratic Funnel</h2>"
-                    f"<div style='height:4px;width:56px;background:{BRAND};margin:6px 0 14px'></div>",
-                    unsafe_allow_html=True)
-scenario = st.sidebar.radio(
-    "2026 turnout scenario", list(SCENARIOS),
-    help="2021 was the COVID election. The scenario sets how much national turnout recovers by 2026; "
-         "the model then adjusts each municipality up or down from that.")
-t_col = SCENARIOS[scenario]
-shift = pred[t_col] - pred["t_2026"]
-pred["t_fc"] = pred[t_col]
-pred["t_fc_low"] = (pred["t_2026_low"] + shift).clip(0.05, 0.95)
-pred["t_fc_high"] = (pred["t_2026_high"] + shift).clip(0.05, 0.95)
-pred["p_fc"] = pred["r_2026"] * pred["t_fc"]
-
-provinces = ["All provinces"] + sorted(pred["province"].unique())
-province = st.sidebar.selectbox("Province", provinces)
-st.sidebar.caption("Data: IEC election results 2011–2021, IEC registration (Sept 2026), "
-                   "Stats SA Census 2022, Municipal Demarcation Board boundaries.")
+def pill(group):
+    text = "#ffffff" if group in ("Low registration", "Both low") else INK
+    return f"<span class='pill' style='background:{GROUP_COLOURS[group]};color:{text}'>{group}</span>"
 
 
-def in_province(df):
-    return df if province == "All provinces" else df[df["province"] == province]
+def box(html):
+    st.markdown(f"<div class='box'>{html}</div>", unsafe_allow_html=True)
+
+
+def chart(fig, height=360):
+    fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="rgba(0,0,0,0)",
+                      paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15, color=INK),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title=None),
+                      hoverlabel=dict(font_size=15))
+    fig.update_xaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 # ------------------------------------------------------------------ header
 st.markdown(f"""
-<div style="background:{CHARCOAL};border-bottom:5px solid {BRAND};border-radius:6px;padding:20px 24px;margin-bottom:18px">
-  <div style="color:{BRAND};font-size:0.8rem;letter-spacing:0.12em;font-weight:600">
+<div style="background:{NAVY};border-bottom:5px solid {DIRISA_ORANGE};border-radius:10px;padding:18px 22px;margin-bottom:14px">
+  <div style="color:{DIRISA_ORANGE};font-size:0.8rem;letter-spacing:0.12em;font-weight:700">
     DIRISA STUDENT DATATHON CHALLENGE 2026 · TEAM UL</div>
-  <div style="color:#ffffff;font-size:2.1rem;font-weight:700;line-height:1.2;margin-top:4px">The Democratic Funnel</div>
-  <div style="color:#d9d6d0;font-size:1rem;margin-top:4px">
+  <div style="color:#fff;font-size:2rem;font-weight:800;line-height:1.2;margin-top:4px">The Democratic Funnel</div>
+  <div style="color:#dfe5f2;font-size:1.02rem;margin-top:4px">
     Where local democracy leaks before the local government elections on 4 November 2026</div>
 </div>""", unsafe_allow_html=True)
 
-# ------------------------------------------------------------------ turnout for every election
-p26 = in_province(pred)
-past = in_province(master[master["election"] < 2026]).groupby("election")[["votes_cast", "registered"]].sum()
-history = pd.DataFrame({
-    "election": [2011, 2016, 2021, 2026],
-    "registered": [*past["registered"], p26["registered_2026"].sum()],
-    "turnout": [*(past["votes_cast"] / past["registered"]),
-                (p26["t_fc"] * p26["registered_2026"]).sum() / p26["registered_2026"].sum()],
-})
-area = "South Africa" if province == "All provinces" else province
+tab_over, tab_map, tab_profile, tab_prio, tab_about = st.tabs(
+    ["Overview", "Map", "Municipality profile", "Priority list", "About"])
 
-st.markdown(f"**Turnout in local government elections — {area}**")
-k = st.columns(4)
-for col, (_, h) in zip(k, history.iterrows()):
-    label = "2026 (forecast)" if h["election"] == 2026 else str(int(h["election"]))
-    note = scenario.split(" (")[0] if h["election"] == 2026 else f"{num(h['registered'])} registered"
-    tile(col, label, pct(h["turnout"]), note)
+# ================================================================== 1. overview
+with tab_over:
+    st.markdown(f"<div style='font-size:1.35rem;font-weight:600;margin:4px 0 14px'>People are lost at two points: "
+                f"<span style='color:{BLUE}'>before registering</span>, and <span style='color:#b27800'>after</span>."
+                "</div>", unsafe_allow_html=True)
 
-tab_overview, tab_map, tab_profile, tab_gap, tab_about = st.tabs(
-    ["Overview", "Funnel map", "Municipality profile", "Gap to target", "About"])
-
-# ================================================================== 0. overview
-with tab_overview:
-    st.markdown(
-        "**How to use this dashboard.** Start here for the big picture. **Funnel map** shows where people are "
-        "lost, municipality by municipality. **Municipality profile** looks at one place in detail, including its "
-        "2026 forecast. **Gap to target** shows how many registrations or voters each municipality is short. "
-        "Use the sidebar to pick a province or a 2026 scenario — every page updates.")
-
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Turnout at every election")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=history["election"][:3], y=history["turnout"][:3], name="Actual",
-                                 mode="lines+markers+text", text=[pct(v) for v in history["turnout"][:3]],
-                                 textposition="top center", line=dict(color=BRAND, width=2),
-                                 marker=dict(size=10, line=dict(width=2, color="white")),
-                                 hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
-        scen = {name: (pd.Series(p26[col]) * p26["registered_2026"]).sum() / p26["registered_2026"].sum()
-                for name, col in SCENARIOS.items()}
-        fig.add_trace(go.Scatter(x=[2021, 2026], y=[history["turnout"][2], history["turnout"][3]],
-                                 name=f"2026 forecast ({scenario.split(' (')[0].lower()})",
-                                 mode="lines+markers+text", text=["", pct(history["turnout"][3])],
-                                 textposition="top center", line=dict(color=BRAND, width=2, dash="dash"),
-                                 marker=dict(size=[0, 11], symbol="diamond"),
-                                 hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
-        lo, hi = min(scen.values()), max(scen.values())
-        fig.add_trace(go.Scatter(x=[2026, 2026], y=[lo, hi], name="Range of scenarios", mode="lines",
-                                 line=dict(color=MUTED, width=6), opacity=0.45,
-                                 hovertemplate="Scenario range: %{y:.1%}<extra></extra>"))
-        fig.update_yaxes(tickformat=".0%", title="Turnout (share of registered voters)",
-                         range=[min(history["turnout"].min(), lo) - 0.06, max(history["turnout"].max(), hi) + 0.06])
-        fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
-        st.plotly_chart(style(fig, 380), use_container_width=True)
-        st.caption(f"Turnout was steady in 2011 and 2016, then fell sharply in 2021 (the COVID election). "
-                   f"For 2026 the grey bar shows the scenarios: {pct(lo)} if turnout does not recover, "
-                   f"{pct(hi)} if it fully returns to the 2016 level.")
-
-    with right:
-        st.subheader("Registered voters at every election")
-        fig = go.Figure(go.Bar(x=history["election"].astype(str), y=history["registered"],
-                               marker_color=[BRAND, BRAND, BRAND, "#f5a35a"],
-                               text=[f"{v / 1e6:.1f} m" if area == "South Africa" else num(v)
-                                     for v in history["registered"]],
-                               textposition="outside", cliponaxis=False,
-                               hovertemplate="%{x}: %{y:,.0f} registered<extra></extra>"))
-        fig.update_yaxes(title="Registered voters", range=[0, history["registered"].max() * 1.18])
-        fig.update_xaxes(title=None, type="category")
-        st.plotly_chart(style(fig, 380), use_container_width=True)
-        elig = p26["eligible_adults"].sum()
-        st.caption(f"{num(p26['registered_2026'].sum())} people are registered for 2026, out of "
-                   f"{num(elig)} eligible adults (Census 2022): {p26['registered_2026'].sum() / elig:.0%}. "
-                   f"The other {num(elig - p26['registered_2026'].sum())} are the registration leak.")
-
-    st.subheader("Turnout by province, every election")
-    by_prov = master[master["election"] < 2026].groupby(["province", "election"])[["votes_cast", "registered"]].sum()
-    by_prov = (by_prov["votes_cast"] / by_prov["registered"]).unstack("election")
-    fc = pred.groupby("province").apply(lambda g: (g["t_fc"] * g["registered_2026"]).sum() / g["registered_2026"].sum())
-    by_prov["2026 forecast"] = fc
-    by_prov.columns = [str(c) for c in by_prov.columns]
-    by_prov = by_prov * 100                                   # show as percentages with one decimal
-    by_prov["Change 2016 → 2021"] = by_prov["2021"] - by_prov["2016"]
-    by_prov = by_prov.sort_values("2021").reset_index()
-    st.dataframe(by_prov, hide_index=True, use_container_width=True,
-                 column_config={"province": "Province",
-                                **{c: st.column_config.NumberColumn(c, format="%.1f%%")
-                                   for c in ["2011", "2016", "2021", "2026 forecast"]},
-                                "Change 2016 → 2021": st.column_config.NumberColumn(
-                                    "Change 2016 → 2021", format="%+.1f points")})
-    st.caption("Turnout = votes cast ÷ registered voters (ward ballot). 2011 figures are on today's municipal "
-               "boundaries. The 2026 forecast follows the scenario chosen in the sidebar.")
-
-# ================================================================== 1. funnel map
-with tab_map:
-    c1, c2 = st.columns([1, 1])
-    year = c1.radio("Election", ["2011", "2016", "2021", "2026 forecast"], index=2, horizontal=True)
-    measure = c2.radio("Colour by", ["Leak type", "Turnout", "Registration rate", "Real participation"],
-                       horizontal=True)
-
-    if year == "2026 forecast":
-        d = pred[["muni_code", "muni_name", "province", "r_2026", "t_fc", "p_fc"]].rename(
-            columns={"r_2026": "r", "t_fc": "t", "p_fc": "p"})
+    adults, reg26 = d["Adults who may vote"].sum(), d["Registered 2026"].sum()
+    reg21, votes21 = d["Registered 2021"].sum(), d["Votes cast 2021"].sum()
+    k = st.columns(4)
+    card(k[0], f"{100 * reg26 / adults:.0f} of 100", "adults are registered to vote in 2026")
+    card(k[1], f"{100 * votes21 / adults:.0f} of 100", "adults actually voted in 2021")
+    card(k[2], millions(d["Young adults not registered"].sum()), "young adults (18–29) are not registered")
+    if HAS_PRED:
+        card(k[3], pct(wavg(d, "Predicted turnout 2026"), 1),
+             f"predicted turnout in 2026 (range {pct(wavg(d, 'Predicted turnout 2026 (low)'))}–"
+             f"{pct(wavg(d, 'Predicted turnout 2026 (high)'))})")
     else:
-        d = master.loc[master["election"] == int(year), ["muni_code", "muni_name", "province", "r", "t", "p"]]
-    d = d.copy()
-    # Leaks compare each municipality with the median municipality in that election
-    d["leak_reg"] = np.log(d["r"].clip(upper=1.0) / d["r"].median())   # capped: see Note below
-    d["leak_turn"] = np.log(d["t"] / d["t"].median())
-    d["Leak type"] = leak_type(d["leak_reg"], d["leak_turn"])
-    d = in_province(d)
-    # More registered than Census eligible adults = Census sample too small there: cap at 100% and say so
-    d["Registration rate"] = d["r"].clip(upper=1.0)
-    d["Turnout"] = d["t"]
-    d["Real participation"] = d["p"].clip(upper=1.0)
-    d["Note"] = np.where(d["r"] > 1.05, "Census too small here: rate capped at 100%", "")
-    hover = {"muni_code": True, "province": True, "Registration rate": ":.1%", "Turnout": ":.1%",
-             "Real participation": ":.1%", "Leak type": True, "Note": True}
+        card(k[3], pct(votes21 / reg21, 1), "turnout in 2021 (prediction not available yet)")
+
+    st.write("")
+    left, right = st.columns([1.1, 1])
+    with left:
+        st.markdown("#### The funnel, 2021: out of every 100 adults")
+        stages = ["May vote", "Registered", "Voted"]
+        vals = [100, 100 * reg21 / adults, 100 * votes21 / adults]
+        fig = go.Figure(go.Bar(x=vals, y=stages, orientation="h", marker_color=[NAVY, BLUE, AMBER],
+                               text=[f"{v:.0f}" for v in vals], textposition="outside", cliponaxis=False,
+                               textfont=dict(size=18), hovertemplate="%{y}: %{x:.0f} of 100<extra></extra>"))
+        fig.update_yaxes(autorange="reversed", title=None)
+        fig.update_xaxes(range=[0, 115], showticklabels=False, showgrid=False)
+        chart(fig, 250)
+        st.caption(f"About {vals[0] - vals[1]:.0f} of every 100 adults were lost before registering, and another "
+                   f"{vals[1] - vals[2]:.0f} after registering. The official turnout figure only shows the second loss.")
+    with right:
+        st.markdown("#### Turnout at every election")
+        yrs = [2011, 2016, 2021]
+        ts = [d[f"Votes cast {y}"].sum() / d[f"Registered {y}"].sum() for y in yrs]
+        fig = go.Figure(go.Scatter(x=yrs, y=ts, mode="lines+markers+text", name="Actual",
+                                   text=[pct(v, 1) for v in ts], textposition="top center",
+                                   line=dict(color=NAVY, width=3), marker=dict(size=11),
+                                   hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
+        if HAS_PRED:
+            p26 = wavg(d, "Predicted turnout 2026")
+            fig.add_trace(go.Scatter(x=[2021, 2026], y=[ts[-1], p26], mode="lines+markers+text", name="Predicted",
+                                     text=["", pct(p26, 1)], textposition="top center",
+                                     line=dict(color=NAVY, width=3, dash="dash"),
+                                     marker=dict(size=[0, 12], symbol="diamond"),
+                                     hovertemplate="%{x} (predicted): %{y:.1%}<extra></extra>"))
+        fig.add_annotation(x=2021, y=ts[-1], text="COVID election", showarrow=False, yshift=-26,
+                           font=dict(color=INK2, size=13))
+        fig.update_yaxes(tickformat=".0%", range=[0.35, 0.7], title=None)
+        fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
+        chart(fig, 250)
+        st.caption("Turnout = votes cast ÷ registered voters. It fell about 12 points in the 2021 COVID election.")
+
+    counts = d["Problem group"].value_counts().reindex(GROUPS, fill_value=0)
+    st.markdown("#### Every municipality has one of four problems")
+    st.markdown(" &nbsp; ".join(f"{pill(g)} <b>{counts[g]}</b>" for g in GROUPS), unsafe_allow_html=True)
+    st.caption(f"Compared with a typical municipality, using the 2026 roll and {TURNOUT_LABEL.lower()}. "
+               "Open the Map to see where they are, or the Municipality profile to look up your own.")
+
+# ================================================================== 2. map
+with tab_map:
+    c1, c2 = st.columns([1, 2])
+    prov = c1.selectbox("Province", ["All provinces"] + sorted(d["Province"].unique()), key="map_prov")
+    groups = c2.multiselect("Problem group", GROUPS, default=GROUPS, key="map_groups")
+    m = d if prov == "All provinces" else d[d["Province"] == prov]
+    m = m[m["Problem group"].isin(groups)].copy()
 
     if geo is None:
-        st.info("The map layer is not in app/artifacts yet (run prepare_artifacts.py with boundaries.gpkg). "
-                "The leak chart below shows the same information.")
+        st.info("The map layer is missing (app/artifacts/municipalities.geojson). Run 09_dashboard_prep.")
+    elif m.empty:
+        st.info("No municipalities match these filters.")
     else:
-        common = dict(geojson=geo, locations="muni_code", featureidkey="properties.muni_code",
-                      hover_name="muni_name", hover_data=hover)
-        if measure == "Leak type":
-            fig = px.choropleth(d, color="Leak type", color_discrete_map=LEAK_COLOURS,
-                                category_orders={"Leak type": LEAK_ORDER}, **common)
-        else:
-            fig = px.choropleth(d, color=measure, color_continuous_scale=ORANGE_RAMP, **common)
-            fig.update_coloraxes(colorbar=dict(tickformat=".0%", title=None, thickness=12))
-        fig.update_traces(marker_line_color="white", marker_line_width=0.4)
-        fig.update_geos(fitbounds="locations", visible=False)
-        st.plotly_chart(style(fig, 560), use_container_width=True)
-
-    st.subheader("Which leak does each municipality have?")
-    st.caption("Right of the line: registration above the median municipality. Above the line: turnout above "
-               "the median. A municipality can lose people at either stage, or both.")
-    fig = px.scatter(d, x="leak_reg", y="leak_turn", color="Leak type", color_discrete_map=LEAK_COLOURS,
-                     category_orders={"Leak type": LEAK_ORDER}, hover_name="muni_name", hover_data=hover)
-    fig.add_hline(y=0, line_color=MUTED, line_width=1)
-    fig.add_vline(x=0, line_color=MUTED, line_width=1)
-    fig.update_traces(marker=dict(size=9, line=dict(width=1.5, color="white")))
-    fig.update_xaxes(title="Registration leak (log ratio to median; below 0 = leaking)")
-    fig.update_yaxes(title="Turnout leak (log ratio to median)")
-    st.plotly_chart(style(fig, 460), use_container_width=True)
-
-    counts = d["Leak type"].value_counts().reindex(LEAK_ORDER, fill_value=0)
-    st.caption(" · ".join(f"**{k}:** {v}" for k, v in counts.items()) + f" municipalities ({year})")
-    with st.expander("Show as a table"):
-        st.dataframe(d[["muni_code", "muni_name", "province", "Registration rate", "Turnout",
-                        "Real participation", "Leak type"]].sort_values("Real participation"),
-                     hide_index=True, use_container_width=True,
-                     column_config={"muni_code": "Code", "muni_name": "Municipality", "province": "Province",
-                                    **{c: st.column_config.NumberColumn(format="percent")
-                                       for c in ["Registration rate", "Turnout", "Real participation"]}})
-
-# ================================================================== 2. municipality profile
-with tab_profile:
-    options = in_province(pred).sort_values("muni_name")
-    labels = options["muni_name"] + " (" + options["muni_code"] + ")"
-    pick = st.selectbox("Choose a municipality", labels.tolist())
-    code = options.loc[labels == pick, "muni_code"].iloc[0]
-    row = pred[pred["muni_code"] == code].iloc[0]
-    hist = master[master["muni_code"] == code].sort_values("election")
-
-    unreliable = row["r_above_1_05"] == 1
-    k = st.columns(4)
-    tile(k[0], "Registration rate 2026", "unreliable*" if unreliable else pct(row["r_2026"]),
-                f"median {pct(pred['r_2026'].median())}")
-    tile(k[1], "Turnout 2021", pct(row["t_2021"]))
-    tile(k[2], "Forecast turnout 2026", pct(row["t_fc"]),
-                f"range {pct(row['t_fc_low'], 0)} – {pct(row['t_fc_high'], 0)}")
-    tile(k[3], "Real participation 2026", "unreliable*" if unreliable else pct(row["p_fc"]),
-                "share of eligible adults expected to vote")
-
-    left, right = st.columns(2)
-    with left:
-        st.subheader("The funnel in 2026")
-        voters = row["registered_2026"] * row["t_fc"]
-        stages = pd.DataFrame({
-            "stage": ["Eligible adults", "Registered", "Expected to vote"],
-            "people": [row["eligible_adults"], row["registered_2026"], voters],
-        })
-        stages["label"] = [num(v) for v in stages["people"]]
-        fig = go.Figure(go.Bar(x=stages["people"], y=stages["stage"], orientation="h",
-                               marker_color=FUNNEL_STEPS, text=stages["label"], textposition="outside",
-                               cliponaxis=False,
-                               hovertemplate="%{y}: %{x:,.0f}<extra></extra>"))
-        fig.update_yaxes(autorange="reversed", title=None)
-        fig.update_xaxes(title="People", range=[0, stages["people"].max() * 1.18])
-        st.plotly_chart(style(fig, 280), use_container_width=True)
-        lost_reg = max(row["eligible_adults"] - row["registered_2026"], 0)
-        st.markdown(f"- **Registration leak:** about **{num(lost_reg)}** eligible adults are not registered.\n"
-                    f"- **Turnout leak:** about **{num(row['registered_2026'] - voters)}** registered voters are "
-                    f"expected not to vote ({scenario.lower()}).")
-        if unreliable:
-            st.warning("*More people are registered here than the Census counts as eligible adults. "
-                       "The Census 2022 sample is small in this municipality, so treat its registration "
-                       "rate with caution.", icon="⚠️")
-
-    with right:
-        st.subheader("Turnout history and 2026 forecast")
-        nat = master[master["election"] < 2026].groupby("election")[["votes_cast", "registered"]].sum()
-        nat = (nat["votes_cast"] / nat["registered"]).reset_index(name="t")
+        m["reg_txt"] = [("over 100% (Census caution)" if c else pct(v, 1))
+                        for v, c in zip(m["Registration rate 2026"], m["Census caution"])]
+        m["pred_txt"] = [pct(v, 1) for v in m["Predicted turnout 2026"]] if HAS_PRED else "not available yet"
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=nat["election"], y=nat["t"], name="National", mode="lines+markers",
-                                 line=dict(color=MUTED, width=2, dash="dot"), marker=dict(size=8),
-                                 hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
-        past = hist[hist["election"] < 2026]
-        fig.add_trace(go.Scatter(x=past["election"], y=past["t"], name=row["muni_name"], mode="lines+markers",
-                                 line=dict(color=BRAND, width=2),
-                                 marker=dict(size=9, line=dict(width=2, color="white")),
-                                 hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
-        fig.add_trace(go.Scatter(
-            x=[2021, 2026], y=[row["t_2021"], row["t_fc"]], name="2026 forecast", mode="lines+markers",
-            line=dict(color=BRAND, width=2, dash="dash"),
-            marker=dict(size=[0, 10], symbol="diamond"),
-            error_y=dict(type="data", symmetric=False, array=[0, row["t_fc_high"] - row["t_fc"]],
-                         arrayminus=[0, row["t_fc"] - row["t_fc_low"]], color=MUTED, thickness=2, width=6),
-            hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
-        fig.update_yaxes(tickformat=".0%", title="Turnout")
-        fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
-        st.plotly_chart(style(fig, 330), use_container_width=True)
+        for g in GROUPS:
+            s = m[m["Problem group"] == g]
+            if s.empty:
+                continue
+            fig.add_trace(go.Choropleth(
+                geojson=geo, featureidkey="properties.muni_code", locations=s["Code"], z=[1] * len(s),
+                colorscale=[[0, GROUP_COLOURS[g]], [1, GROUP_COLOURS[g]]], showscale=False, name=g,
+                showlegend=False, marker_line_color="white", marker_line_width=0.5,
+                customdata=s[["Municipality", "Province", "reg_txt", "Turnout 2021", "Problem group", "pred_txt"]],
+                hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>"
+                              "Registration rate 2026: %{customdata[2]}<br>"
+                              "Turnout 2021: %{customdata[3]:.1%}<br>"
+                              "Problem group: %{customdata[4]}<br>"
+                              "Predicted turnout 2026: %{customdata[5]}<extra></extra>"))
+            fig.add_trace(go.Scattergeo(lon=[None], lat=[None], mode="markers", name=f"{g} ({len(s)})",
+                                        marker=dict(size=14, color=GROUP_COLOURS[g], symbol="square")))
+        fig.update_geos(fitbounds="locations", visible=False)
+        chart(fig, 600)
+        st.caption("Each municipality coloured by its problem group. Hover (or tap) for its numbers. "
+                   "The groups cluster by region, which points to regional causes.")
 
-        st.markdown("**What the model associates with this municipality's forecast**")
-        bits = []
-        if isinstance(row["main_factor_down"], str):
-            bits.append(f"Pulling turnout down most: **{row['main_factor_down']}**")
-        if isinstance(row["main_factor_up"], str):
-            bits.append(f"Holding turnout up most: **{row['main_factor_up']}**")
-        st.markdown("\n".join(f"- {b}" for b in bits) or "- No strong factor either way.")
-        if row["worse_than_expected_2021"] == 1:
-            st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
-                    "Something local happened that the data cannot see.", icon="🔎")
-        st.caption(FACTOR_NOTE)
+    with st.expander("Show as a table"):
+        st.dataframe(m[["Municipality", "Province", "Problem group", "Registration rate 2026", "Turnout 2021",
+                        "Predicted turnout 2026"]].sort_values("Municipality"), hide_index=True,
+                     use_container_width=True,
+                     column_config={c: st.column_config.NumberColumn(format="percent")
+                                    for c in ["Registration rate 2026", "Turnout 2021", "Predicted turnout 2026"]})
 
-# ================================================================== 3. gap to target
-with tab_gap:
-    st.subheader("What would it take to reach the median municipality?")
-    st.caption("Plain arithmetic, for campaign planning: how many more registrations would bring each "
-               "municipality to the national median registration rate, and how many more voters would bring "
-               "it to the median forecast turnout.")
-    g = pred.merge(master.loc[master["election"] == 2026, ["muni_code", "eligible_youth", "registered_youth"]],
-                   on="muni_code", how="left")
-    r_med, t_med = pred["r_2026"].median(), pred["t_fc"].median()
-    g["registrations_needed"] = np.ceil((r_med * g["eligible_adults"] - g["registered_2026"]).clip(lower=0))
-    g["extra_voters_needed"] = np.ceil(((t_med - g["t_fc"]) * g["registered_2026"]).clip(lower=0))
-    g["youth_not_registered"] = (g["eligible_youth"] - g["registered_youth"]).clip(lower=0)
-    g = in_province(g)
+# ================================================================== 3. municipality profile
+with tab_profile:
+    labels = (d["Municipality"] + " (" + d["Province"] + ")").tolist()
+    choice = st.selectbox("Type a municipality's name", sorted(labels), index=None,
+                          placeholder="e.g. Polokwane, eThekwini, Mbombela ...")
+    if choice is None:
+        st.info("Start typing a name above to see that municipality's funnel, problem and 2026 forecast.")
+    else:
+        row = d.iloc[labels.index(choice)]
+        g, caution = row["Problem group"], bool(row["Census caution"])
+        st.markdown(f"### {row['Municipality']}")
+        st.caption(f"{row['Type']} municipality, {row['Province']}")
+        st.markdown(f"{pill(g)} &nbsp; This municipality is <b>{GROUP_MEANING[g]}</b>.", unsafe_allow_html=True)
 
-    k = st.columns(3)
-    tile(k[0], "Registrations needed (total)", num(g["registrations_needed"].sum()),
-                f"to reach {pct(r_med)} registration")
-    tile(k[1], "Extra voters needed (total)", num(g["extra_voters_needed"].sum()),
-                f"to reach {pct(t_med)} turnout")
-    tile(k[2], "Young citizens (18–29) not registered", num(g["youth_not_registered"].sum()))
+        gap_reg, gap_vote = row["Registrations needed to reach typical"], row["Extra voters needed to reach typical"]
+        send = {"Low registration": f"<b>Send: a registration drive.</b> About <b>{num(gap_reg)}</b> more "
+                                    f"registrations would bring {row['Municipality']} to the typical level "
+                                    f"({pct(row['Typical registration rate'])} of adults).",
+                "Low turnout": f"<b>Send: voter mobilisation.</b> About <b>{num(gap_vote)}</b> more voters would "
+                               f"bring turnout to the typical level ({pct(row['Typical turnout'])}).",
+                "Both low": f"<b>Send: a registration drive and voter mobilisation.</b> About "
+                            f"<b>{num(gap_reg)}</b> more registrations and <b>{num(gap_vote)}</b> more voters would "
+                            "bring it to the typical level.",
+                "Healthy": "<b>Nothing urgent.</b> Registration and turnout are at or above a typical "
+                           "municipality."}[g]
+        if row["Young adults not registered"] > 0:
+            send += (f" Young adults are the biggest group missing: <b>{num(row['Young adults not registered'])}"
+                     "</b> people aged 18–29 are not registered.")
+        box(send)
 
-    top = g.nlargest(15, "registrations_needed").sort_values("registrations_needed")
-    fig = go.Figure(go.Bar(x=top["registrations_needed"], y=top["muni_name"], orientation="h",
-                           marker_color=BRAND,
-                           text=[num(v) for v in top["registrations_needed"]], textposition="outside",
-                           cliponaxis=False, hovertemplate="%{y}: %{x:,.0f} registrations<extra></extra>"))
-    fig.update_layout(title="Largest registration gaps")
-    fig.update_xaxes(title="Registrations needed to reach the median rate",
-                     range=[0, top["registrations_needed"].max() * 1.2])
-    st.plotly_chart(style(fig, 460), use_container_width=True)
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Out of every 100 adults")
+            reg100, vote100 = min(row["Registered per 100 adults"], 100), row["Voters per 100 adults"]
+            typ_reg100 = 100 * row["Typical registration rate"]
+            typ_vote100 = typ_reg100 * row["Typical turnout"]
+            vote_label = "Expected to vote (2026)" if HAS_PRED else "Voted (at 2021 turnout)"
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=[100, reg100, vote100], y=["May vote", "Registered (2026)", vote_label],
+                                 orientation="h", marker_color=[NAVY, BLUE, AMBER], name=row["Municipality"],
+                                 text=[f"{v:.0f}" for v in (100, reg100, vote100)], textposition="inside",
+                                 insidetextanchor="start", textfont=dict(size=18, color=["#fff", "#fff", INK]),
+                                 hovertemplate="%{y}: %{x:.0f} of 100<extra></extra>"))
+            fig.add_trace(go.Scatter(x=[typ_reg100, typ_vote100], y=["Registered (2026)", vote_label],
+                                     mode="markers", name="Typical municipality",
+                                     marker=dict(symbol="line-ns", size=34, line=dict(width=4, color=NAVY)),
+                                     hovertemplate="Typical municipality: %{x:.0f} of 100<extra></extra>"))
+            fig.update_yaxes(autorange="reversed", title=None)
+            fig.update_xaxes(range=[0, 118], showticklabels=False, showgrid=False)
+            chart(fig, 270)
+            st.caption("Bars: this municipality. Navy lines: a typical municipality."
+                       + (" Registration is capped at 100 here — see the Census note below." if caution else ""))
 
-    table = g[["muni_code", "muni_name", "province", "r_2026", "t_fc", "registrations_needed",
-               "extra_voters_needed", "youth_not_registered"]].sort_values("registrations_needed", ascending=False)
-    st.dataframe(table, hide_index=True, use_container_width=True,
-                 column_config={"muni_code": "Code", "muni_name": "Municipality", "province": "Province",
-                                "r_2026": st.column_config.NumberColumn("Registration rate", format="percent"),
-                                "t_fc": st.column_config.NumberColumn("Forecast turnout", format="percent"),
-                                "registrations_needed": st.column_config.NumberColumn("Registrations needed",
-                                                                                      format="%d"),
-                                "extra_voters_needed": st.column_config.NumberColumn("Extra voters needed",
-                                                                                     format="%d"),
-                                "youth_not_registered": st.column_config.NumberColumn("Youth not registered",
-                                                                                      format="%d")})
-    st.download_button("Download this table (CSV)", table.to_csv(index=False).encode("utf-8"),
-                       "democratic_funnel_gap_to_target.csv", "text/csv")
+            st.markdown("#### Compared with a typical municipality")
+            cc = st.columns(3)
+            reg_txt = "over 100%*" if caution else pct(row["Registration rate 2026"])
+            stat(cc[0], "Registration rate", reg_txt, f"typical: {pct(row['Typical registration rate'])}")
+            stat(cc[1], "Predicted turnout" if HAS_PRED else "Turnout 2021", pct(row["Turnout used"]),
+                 f"typical: {pct(row['Typical turnout'])}")
+            stat(cc[2], "Youth (18–29)", pct(row["Youth registration rate"]),
+                 f"all adults here: {reg_txt}")
 
-# ================================================================== 4. about
+        with right:
+            st.markdown("#### Turnout, and the 2026 prediction")
+            yrs = [2011, 2016, 2021]
+            ts = [row[f"Turnout {y}"] for y in yrs]
+            nat = [d[f"Votes cast {y}"].sum() / d[f"Registered {y}"].sum() for y in yrs]
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=yrs, y=nat, name="National", mode="lines+markers",
+                                     line=dict(color=NAVY, width=2, dash="dot"), marker=dict(size=8),
+                                     hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
+            fig.add_trace(go.Scatter(x=yrs, y=ts, name=row["Municipality"], mode="lines+markers",
+                                     line=dict(color=AMBER, width=3),
+                                     marker=dict(size=11, line=dict(width=2, color="white")),
+                                     hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
+            if HAS_PRED:
+                p, lo, hi = (row["Predicted turnout 2026"], row["Predicted turnout 2026 (low)"],
+                             row["Predicted turnout 2026 (high)"])
+                fig.add_trace(go.Scatter(
+                    x=[2021, 2026], y=[ts[-1], p], name="Predicted 2026", mode="lines+markers",
+                    line=dict(color=AMBER, width=3, dash="dash"), marker=dict(size=[0, 13], symbol="diamond"),
+                    error_y=dict(type="data", symmetric=False, array=[0, hi - p], arrayminus=[0, p - lo],
+                                 color=NAVY, thickness=2, width=8),
+                    hovertemplate="%{x} predicted: %{y:.1%}<extra></extra>"))
+            fig.update_yaxes(tickformat=".0%", title=None)
+            fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
+            chart(fig, 300)
+            if HAS_PRED:
+                st.markdown(f"**Predicted turnout 2026: {pct(p, 1)}** (likely range {pct(lo)} – {pct(hi)}).")
+            else:
+                st.markdown("The 2026 prediction will appear here once the model has run.")
+
+            factors = []
+            if isinstance(row["Main factor pulling turnout down"], str):
+                factors.append(f"pulling turnout down: **{row['Main factor pulling turnout down']}**")
+            if isinstance(row["Main factor holding turnout up"], str):
+                factors.append(f"holding turnout up: **{row['Main factor holding turnout up']}**")
+            if factors:
+                st.markdown("What the model links with this forecast — " + "; ".join(factors) + ".")
+            if str(row["Worse than expected in 2021"]) == "True":
+                st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
+                        "Something local happened that our data cannot see.", icon="🔎")
+            st.caption(NOT_A_CAUSE + " Youth figures are about registration only: the IEC does not publish "
+                       "turnout by age.")
+
+        if caution:
+            st.warning("*More people are registered here than the Census 2022 counted adults. The Census sample is "
+                       "small in this municipality, so its registration rate is not reliable.", icon="⚠️")
+
+# ================================================================== 4. priority list
+with tab_prio:
+    st.markdown("#### Where to act before 4 November 2026")
+    st.caption(f"Ranked by how far each municipality is below a typical one, using the 2026 roll and "
+               f"{TURNOUT_LABEL.lower()}. The shortfall is split into its registration part and its turnout part.")
+    c1, c2 = st.columns([1, 2])
+    prov = c1.selectbox("Province", ["All provinces"] + sorted(d["Province"].unique()), key="prio_prov")
+    groups = c2.multiselect("Problem group", GROUPS, default=["Both low", "Low registration", "Low turnout"],
+                            key="prio_groups")
+    p = d if prov == "All provinces" else d[d["Province"] == prov]
+    p = p[p["Problem group"].isin(groups)].sort_values("Priority rank")
+
+    top = p.head(15).iloc[::-1]
+    if not top.empty:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(y=top["Municipality"], x=top["Shortfall: registration part"], orientation="h",
+                             name="Registration part", marker_color=BLUE,
+                             hovertemplate="%{y}: registration part %{x:.2f}<extra></extra>"))
+        fig.add_trace(go.Bar(y=top["Municipality"], x=top["Shortfall: turnout part"], orientation="h",
+                             name="Turnout part", marker_color=AMBER,
+                             hovertemplate="%{y}: turnout part %{x:.2f}<extra></extra>"))
+        fig.update_layout(barmode="stack", bargap=0.25, legend_traceorder="normal")
+        fig.update_xaxes(title="How far below a typical municipality")
+        chart(fig, 520)
+        st.caption("The top 15 on this list. Blue: the part of the shortfall from people not registering. "
+                   "Amber: the part from registered voters not voting.")
+
+    table = p[["Priority rank", "Municipality", "Province", "Problem group", "What to send",
+               "Registration rate 2026", "Turnout used", "Registrations needed to reach typical",
+               "Extra voters needed to reach typical", "Young adults not registered",
+               "Shortfall: registration part", "Shortfall: turnout part"]].rename(
+        columns={"Turnout used": TURNOUT_LABEL, "Priority rank": "Rank"})
+    table[["Registration rate 2026", TURNOUT_LABEL]] = (table[["Registration rate 2026", TURNOUT_LABEL]] * 100).round(1)
+    st.dataframe(table, hide_index=True, use_container_width=True, height=460, column_config={
+        "Registration rate 2026": st.column_config.NumberColumn(format="%.0f%%"),
+        TURNOUT_LABEL: st.column_config.NumberColumn(format="%.0f%%"),
+        "Registrations needed to reach typical": st.column_config.NumberColumn(format="%d"),
+        "Extra voters needed to reach typical": st.column_config.NumberColumn(format="%d"),
+        "Young adults not registered": st.column_config.NumberColumn(format="%d"),
+        "Shortfall: registration part": st.column_config.ProgressColumn(format="%.2f", min_value=0, max_value=1),
+        "Shortfall: turnout part": st.column_config.ProgressColumn(format="%.2f", min_value=0, max_value=1)})
+    st.download_button("Download this list (CSV)", table.to_csv(index=False).encode("utf-8"),
+                       "democratic_funnel_priority_list.csv", "text/csv", type="primary")
+    st.caption(f"{len(p)} municipalities shown. Registration rates above 100% (Census caution) are counted as 100%.")
+
+# ================================================================== 5. about
 with tab_about:
-    st.markdown("""
+    st.markdown(f"""
 ### The problem
-People drop out of local democracy at **two points**: eligible adults who never **register**, and registered
-voters who do not **vote**. The usual turnout figure only measures the second, because it is calculated among
-registered voters. Everyone who never registered is invisible in it. The two leaks need different responses:
-registration drives and ID support for the first, voter education and mobilisation for the second.
+South Africa votes for its local councils on **4 November 2026**. People drop out of local democracy at two
+points: adults who never **register**, and registered voters who do not **vote**. The turnout figure in the news
+only measures the second, because it is calculated among registered voters. The two leaks need different
+responses: registration drives for the first, voter education and mobilisation for the second.
 
-### The funnel
-For each municipality: **r** = registered ÷ eligible adults, **t** = votes cast ÷ registered, and real
-participation **p = r × t**. Comparing each municipality with the median municipality splits its shortfall
-exactly into a *registration leak* and a *turnout leak*.
+### How we measure it
+For each municipality: **registration rate** = registered ÷ adults who may vote; **turnout** = votes cast ÷
+registered; **real participation** = registration rate × turnout. Each municipality is compared with the
+**typical (median) municipality**, which places it in one of four problem groups.
 
-### The forecast
-2026 turnout = 2021 turnout + a national swing + an adjustment for each municipality from a
-**hierarchical (mixed-effects) regression** (municipalities grouped within provinces). The model was tested
-by training on the 2011 → 2016 change and predicting the 2016 → 2021 change. Most of the change between
-elections is national, so the national swing is shown as scenarios (no, half or full recovery from the COVID
-drop in 2021), and each forecast comes with a range.
+### How the prediction works, in plain words
+2026 turnout = 2021 turnout + a **national recovery** from the COVID drop + an **adjustment** for each municipality.
+The adjustment comes from a statistical model (a hierarchical regression, with municipalities grouped inside
+provinces) that learned how turnout changed between 2011, 2016 and 2021. We tested it by training on
+2011 → 2016 and predicting 2016 → 2021. Most of the change between elections is national, so every prediction
+comes with a **range**, not a single number.
 
 ### Data sources
 | Source | Used for |
 |---|---|
 | IEC municipal election results 2011, 2016, 2021 | registered voters, votes cast, turnout |
-| IEC voter registration statistics (September 2026) | registered voters for 2026 |
-| Stats SA Census 2022 | eligible adults (citizens 18+), services, education |
+| IEC voter registration statistics, September 2026 | the 2026 roll, including ages 18–29 |
+| Stats SA Census 2022 | adults who may vote (citizens 18+), services, education |
 | Municipal Demarcation Board | boundaries, area, neighbours |
-| IEC municipal atlas | registration activity, 2011 → current boundary crosswalk |
+| IEC municipal atlas | 2011 results moved onto today's boundaries |
 
-### Limitations
-- **Census undercount and small samples:** in a few small municipalities more people are registered than the
-  Census counts as eligible, so their registration rate is flagged and should be read with caution.
-- **2021 was a COVID election:** its low turnout is partly a one-off, which is why 2026 is given as scenarios.
-- **Boundaries changed in 2016:** 2011 results were moved onto today's boundaries using area shares.
-- **Registration is a snapshot** taken in September 2026; it changes until the roll closes.
-- **Municipality-level data only:** patterns across municipalities cannot show how individuals behave. The
-  factors shown are associations, never proven causes.
-- **Youth turnout is not published** by the IEC, so youth findings are about registration only.
-- **Small sample:** 213 municipalities and two past changes in turnout; forecasts come with a range.
+### Limitations, stated honestly
+- **{NOT_A_CAUSE}**
+- **Youth figures are about registration only.** The IEC does not publish turnout by age at municipal level.
+- **Census undercount and small samples.** In {int(d['Census caution'].sum())} small municipalities more people
+  are registered than the Census counted adults; their registration rate is flagged and counted as 100%.
+- **2021 was a COVID election.** Its low turnout is partly a one-off, which is why 2026 is given as a range.
+- **Boundaries changed in 2016.** 2011 results were moved onto today's boundaries using area shares.
+- **Registration is a snapshot** from September 2026; it changes until the roll closes.
+- **Small sample.** 213 municipalities and two past changes in turnout.
 
 *Team UL, University of Limpopo · DIRISA Student Datathon Challenge 2026*
 """)

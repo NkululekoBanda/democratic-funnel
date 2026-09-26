@@ -1,7 +1,8 @@
-# DIRISA colours: orange accent (#ee7900) and charcoal (#313131), from dirisa.ac.za
+# Navy accent (= "national" in the house style). DIRISA orange is used only in the header stripe,
+# because it is too close to the amber that means "turnout" in the charts.
 [theme]
 base = "light"
-primaryColor = "#ee7900"
+primaryColor = "#1b2f5b"
 backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f5f3f0"
-textColor = "#313131"
+secondaryBackgroundColor = "#f3f5fa"
+textColor = "#0b0b0b"
