@@ -431,6 +431,15 @@ def profile():
                 factors.append(f"holding turnout up: **{row['Main factor holding turnout up']}**")
             if factors:
                 st.markdown("What the model links with this forecast — " + "; ".join(factors) + ".")
+            covid = row.get("After COVID (2024)")
+            if isinstance(covid, str):
+                how = ("did relatively better in the 2024 national election than in 2021, so 2021 probably "
+                       "understated it" if covid.startswith("recovered") else
+                       "fell further behind the rest of the country in the 2024 national election "
+                       "than it usually does")
+                st.markdown(f"**After COVID: {covid}.** This municipality {how}. If that carries into 2026, "
+                            f"turnout would be about **{pct(row['Predicted turnout 2026 (COVID recovery)'], 1)}** "
+                            "(COVID recovery scenario).")
             if str(row["Worse than expected in 2021"]) == "True":
                 st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
                         "Something local happened that our data cannot see.", icon="🔎")
