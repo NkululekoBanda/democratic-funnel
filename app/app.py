@@ -67,7 +67,7 @@ st.markdown(f"""
   .kpi .label {{ font-size: .92rem; font-weight: 700; color: {INK}; }}
   .kpi .value {{ font-size: 2rem; font-weight: 800; line-height: 1.15; margin: 4px 0; }}
   .kpi .note {{ font-size: .88rem; color: {INK2}; line-height: 1.35; }}
-  .panel {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; border-radius: 8px;
+  .panel {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; 
             margin: 6px 0 14px; line-height: 1.5; }}
   .panel.warn {{ border-left-color: {CRIMSON}; background: #fbf1f3; }}
   .rec {{ border: 1px solid {GRID}; border-radius: 12px; padding: 4px 18px 10px; margin-bottom: 16px; background: #fff;
