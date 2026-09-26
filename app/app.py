@@ -503,7 +503,7 @@ registered; **real participation** = registration rate × turnout. Each municipa
 **typical (median) municipality**, which places it in one of four problem groups.
 
 ### How the prediction works, in plain words
-2026 turnout = 2021 turnout + a **national recovery** from the COVID drop + an **adjustment** for each municipality.
+2026 turnout = 2021 turnout + a **national change**, taken from turnout in the 2024 national election, + an **adjustment** for each municipality.
 The adjustment comes from a statistical model (a hierarchical regression, with municipalities grouped inside
 provinces) that learned how turnout changed between 2011, 2016 and 2021. We tested it by training on
 2011 → 2016 and predicting 2016 → 2021. Most of the change between elections is national, so every prediction
@@ -513,6 +513,7 @@ comes with a **range**, not a single number.
 | Source | Used for |
 |---|---|
 | IEC municipal election results 2011, 2016, 2021 | registered voters, votes cast, turnout |
+| IEC national election results 2024 | the national change in turnout expected for 2026 |
 | IEC voter registration statistics, September 2026 | the 2026 roll, including ages 18–29 |
 | Stats SA Census 2022 | adults who may vote (citizens 18+), services, education |
 | Municipal Demarcation Board | boundaries, area, neighbours |
