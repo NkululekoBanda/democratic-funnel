@@ -5,7 +5,9 @@ Reads only app/artifacts/dashboard.csv and app/artifacts/municipalities.geojson
 
 Run locally:  streamlit run app/app.py
 """
+import base64
 import json
+from textwrap import dedent
 from pathlib import Path
 
 import pandas as pd
@@ -48,7 +50,44 @@ st.markdown(f"""
     border: 1px solid {GRID} !important; background: #fff !important; }}
   [data-testid="stExpandSidebarButton"]::after, [data-testid="stSidebarCollapsedControl"] button::after {{
     content: "☰  Menu"; font-size: 1.05rem; font-weight: 700; color: {NAVY}; white-space: pre; }}
-  @media (max-width: 640px) {{ .card .big {{ font-size: 1.8rem; }} }}
+  .card {{ box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  .topbar {{ display: flex; align-items: center; gap: 18px; background: #fff; border: 1px solid {GRID};
+             border-bottom: 4px solid {DIRISA_ORANGE}; border-radius: 12px; padding: 12px 20px; margin-bottom: 18px;
+             box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  .topbar img.dirisa {{ height: 54px; }}
+  .topbar img.ul {{ height: 62px; margin-left: auto; }}
+  .topbar .name {{ border-left: 1px solid {GRID}; padding-left: 18px; }}
+  .topbar .name .t {{ font-size: 1.55rem; font-weight: 800; color: {NAVY}; line-height: 1.15; }}
+  .topbar .name .s {{ font-size: .95rem; color: {INK2}; }}
+  .pagehead {{ margin: 2px 0 14px; }}
+  .pagehead h2 {{ color: {NAVY}; font-size: 1.7rem; font-weight: 800; margin: 0; padding: 0; }}
+  .pagehead p {{ color: {INK2}; margin: 4px 0 0; font-size: 1.02rem; }}
+  .kpi {{ border: 1px solid {GRID}; border-radius: 12px; padding: 14px 16px; height: 100%; background: #fff;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  .kpi .label {{ font-size: .92rem; font-weight: 700; color: {INK}; }}
+  .kpi .value {{ font-size: 2rem; font-weight: 800; line-height: 1.15; margin: 4px 0; }}
+  .kpi .note {{ font-size: .88rem; color: {INK2}; line-height: 1.35; }}
+  .panel {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; border-radius: 8px;
+            margin: 6px 0 14px; line-height: 1.5; }}
+  .panel.warn {{ border-left-color: {CRIMSON}; background: #fbf1f3; }}
+  .rec {{ border: 1px solid {GRID}; border-radius: 12px; padding: 4px 18px 10px; margin-bottom: 16px; background: #fff;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  .rec h3 {{ margin-bottom: 4px; color: {NAVY}; }}
+  .rec .row {{ display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid {GRID}; }}
+  .rec .k {{ min-width: 190px; font-weight: 700; color: {NAVY}; }}
+  .info {{ border: 1px solid {GRID}; border-radius: 12px; padding: 16px 18px; height: 100%; background: #fff;
+           box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  .info .icon {{ font-size: 1.9rem; }}
+  .info h4 {{ margin: 6px 0; color: {NAVY}; }}
+  .footer {{ margin-top: 42px; border-top: 4px solid {DIRISA_ORANGE}; background: #fff; padding: 18px 8px 8px; }}
+  .footer img {{ width: 100%; max-width: 900px; display: block; margin: 0 auto 12px; }}
+  .footer .txt {{ text-align: center; color: {INK2}; font-size: .86rem; line-height: 1.55; }}
+  @media (max-width: 640px) {{
+    .card .big {{ font-size: 1.8rem; }}
+    .topbar {{ flex-wrap: wrap; gap: 10px; }} .topbar img.dirisa {{ height: 40px; }} .topbar img.ul {{ height: 46px; }}
+    .topbar .name {{ border-left: none; padding-left: 0; order: 3; width: 100%; }}
+    .rec .row {{ flex-direction: column; gap: 2px; }} .rec .k {{ min-width: 0; }}
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,6 +145,64 @@ def box(html):
     st.markdown(f"<div class='box'>{html}</div>", unsafe_allow_html=True)
 
 
+def img64(name):
+    path = Path(__file__).resolve().parent / "static" / name
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode() if path.exists() else ""
+
+
+def page_header(title, subtitle):
+    st.markdown(f"<div class='pagehead'><h2>{title}</h2><p>{subtitle}</p></div>", unsafe_allow_html=True)
+
+
+def kpi(col, label, value, note, colour=INK):
+    col.markdown(f"<div class='kpi'><div class='label'>{label}</div><div class='value' style='color:{colour}'>"
+                 f"{value}</div><div class='note'>{note}</div></div>", unsafe_allow_html=True)
+
+
+def panel(html, warn=False):
+    st.markdown(f"<div class='panel{' warn' if warn else ''}'>{html}</div>", unsafe_allow_html=True)
+
+
+def info_card(col, icon, title, body):
+    col.markdown(f"<div class='info'><div class='icon'>{icon}</div><h4>{title}</h4>{body}</div>",
+                 unsafe_allow_html=True)
+
+
+def recommendation(title, finding, evidence, response, further):
+    rows = [("What the data shows", finding), ("Evidence", evidence), ("Possible response", response),
+            ("Further evidence needed", further)]
+    body = "".join(f"<div class='row'><div class='k'>{k}</div><div>{v}</div></div>" for k, v in rows)
+    st.markdown(f"<div class='rec'><h3>{title}</h3>{body}</div>", unsafe_allow_html=True)
+
+
+def national(df):
+    """National totals and rates, each tied to its year."""
+    adults = df["Adults who may vote"].sum()
+    n = {"adults": adults}
+    for y in (2011, 2016, 2021):
+        n[f"registered_{y}"], n[f"votes_{y}"] = df[f"Registered {y}"].sum(), df[f"Votes cast {y}"].sum()
+        n[f"turnout_{y}"] = n[f"votes_{y}"] / n[f"registered_{y}"]
+    n["registered_2026"] = df["Registered 2026"].sum()
+    n["reg_rate_2026"] = n["registered_2026"] / adults
+    n["youth_adults"], n["youth_registered"] = df["Young adults who may vote"].sum(), df["Young adults registered"].sum()
+    n["youth_not_registered"] = df["Young adults not registered"].sum()
+    n["youth_reg_rate"] = n["youth_registered"] / n["youth_adults"]
+    n["older_reg_rate"] = (n["registered_2026"] - n["youth_registered"]) / (adults - n["youth_adults"])
+    n["youth_share_of_missing"] = n["youth_not_registered"] / (adults - n["registered_2026"])
+    return n
+
+
+def by_province(df):
+    rows = []
+    for p, g in df.groupby("Province"):
+        r = {"Province": p}
+        for y in (2011, 2016, 2021):
+            r[f"Turnout {y}"] = g[f"Votes cast {y}"].sum() / g[f"Registered {y}"].sum()
+        r["Participation 2021"] = g["Votes cast 2021"].sum() / g["Adults who may vote"].sum()
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
 def chart(fig, height=360):
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15, color=INK),
@@ -116,19 +213,19 @@ def chart(fig, height=360):
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
-# ------------------------------------------------------------------ header
+# ------------------------------------------------------------------ header: logos and name
 st.markdown(f"""
-<div style="background:{NAVY};border-bottom:5px solid {DIRISA_ORANGE};border-radius:10px;padding:18px 22px;margin-bottom:14px">
-  <div style="color:{DIRISA_ORANGE};font-size:0.8rem;letter-spacing:0.12em;font-weight:700">
-    DIRISA STUDENT DATATHON CHALLENGE 2026 · TEAM UL</div>
-  <div style="color:#fff;font-size:2rem;font-weight:800;line-height:1.2;margin-top:4px">The Democratic Funnel</div>
-  <div style="color:#dfe5f2;font-size:1.02rem;margin-top:4px">
-    Where local democracy leaks before the local government elections on 4 November 2026</div>
+<div class="topbar">
+  <img class="dirisa" src="{img64('dirisa_logo.png')}" alt="NICIS DIRISA">
+  <div class="name"><div class="t">The Democratic Funnel</div>
+    <div class="s">Where local democracy leaks before the local government elections on 4 November 2026</div></div>
+  <img class="ul" src="{img64('ul_logo.png')}" alt="University of Limpopo">
 </div>""", unsafe_allow_html=True)
 
 
 # ================================================================== 1. overview
 def overview():
+    page_header("Overview", "The national picture: where people are lost between being eligible, registering and voting.")
     st.markdown(f"<div style='font-size:1.35rem;font-weight:600;margin:4px 0 14px'>People are lost at two points: "
                 f"<span style='color:{BLUE}'>before registering</span>, and <span style='color:#b27800'>after</span>."
                 "</div>", unsafe_allow_html=True)
@@ -190,6 +287,7 @@ def overview():
 
 # ================================================================== 2. map
 def map_page():
+    page_header("Map", "Every municipality by its problem group. Filter by province or group; hover or tap for details.")
     c1, c2 = st.columns([1, 2])
     prov = c1.selectbox("Province", ["All provinces"] + sorted(d["Province"].unique()), key="map_prov")
     groups = c2.multiselect("Problem group", GROUPS, default=GROUPS, key="map_groups")
@@ -235,6 +333,7 @@ def map_page():
 
 # ================================================================== 3. municipality profile
 def profile():
+    page_header("Municipality profile", "Look up any municipality: its funnel, its problem, what to send, and its 2026 outlook.")
     labels = (d["Municipality"] + " (" + d["Province"] + ")").tolist()
     choice = st.selectbox("Type a municipality's name", sorted(labels), index=None,
                           placeholder="e.g. Polokwane, eThekwini, Mbombela ...")
@@ -344,6 +443,7 @@ def profile():
 
 # ================================================================== 4. priority list
 def priority_list():
+    page_header("Priority list", "Municipalities ranked by how far they are below a typical municipality, with the gap split into its two parts.")
     st.markdown("#### Where to act before 4 November 2026")
     st.caption(f"Ranked by how far each municipality is below a typical one, using the 2026 roll and "
                f"{TURNOUT_LABEL.lower()}. The shortfall is split into its registration part and its turnout part.")
@@ -389,6 +489,7 @@ def priority_list():
 
 # ================================================================== 5. about
 def about():
+    page_header("About", "The problem, how we measured it, how the prediction works, our data sources and the limitations.")
     st.markdown(f"""
 ### The problem
 South Africa votes for its local councils on **4 November 2026**. People drop out of local democracy at two
@@ -431,13 +532,261 @@ comes with a **range**, not a single number.
 """)
 
 
+# ================================================================== Recommendations
+def recommendations_page():
+    page_header("Recommendations", "Evidence-linked responses to each type of gap: what the data shows, the evidence, a possible response, and what further evidence is needed.")
+    n = national(d)
+
+    st.markdown("Each recommendation is tied to a finding in the data. For every one we separate **what the data shows**, "
+                "**the evidence**, **a possible response**, and **what further evidence is needed**. Municipalities are "
+                "not ranked or scored: the data shows where a gap exists, not why it exists or what matters most locally.")
+
+    low_reg = d["Problem group"].isin(["Low registration", "Both low"])
+    low_turn = d["Problem group"].isin(["Low turnout", "Both low"])
+    youth_below = int((d["Youth registration rate"] < d["Registration rate 2026"]).sum())
+
+    recommendation(
+        "1 · Registration",
+        f"{millions(n['adults'] - n['registered_2026'])} eligible adults ({pct(1 - n['reg_rate_2026'])}) are not on the "
+        f"2026 voters' roll. In <b>{int(low_reg.sum())}</b> municipalities registration is below a typical municipality.",
+        f"2026 registration figures (IEC, September 2026) compared with citizens aged 18+ (Census 2022). Typical "
+        f"(median) registration rate: {pct(d['Typical registration rate'].iloc[0])}.",
+        "Make registration information easier to find and understand; publicise the ways to register (online, at IEC "
+        "offices, at registration events); explain the documents needed; focus voter education where registration "
+        "gaps are documented.",
+        "Why people are not registered in each place — for example address changes, missing identity documents, "
+        "information gaps or mobility. That needs local or survey research; this data cannot show it.")
+
+    recommendation(
+        "2 · Turnout",
+        f"In 2021, {pct(1 - n['turnout_2021'], 1)} of registered voters did not vote "
+        f"({millions(n['registered_2021'] - n['votes_2021'])} people). In <b>{int(low_turn.sum())}</b> municipalities "
+        "turnout is expected to be below a typical municipality.",
+        f"IEC results: turnout was {pct(n['turnout_2011'], 1)} (2011), {pct(n['turnout_2016'], 1)} (2016) and "
+        f"{pct(n['turnout_2021'], 1)} (2021, held under COVID-19 restrictions). Every province fell in 2021.",
+        "Improve public information about voting: dates, voting-station locations, procedures and special votes; "
+        "make that information simple and available in local languages; support voters to confirm their details "
+        "before election day.",
+        "Local barriers to voting (distance, transport, work, queues, trust) are possible explanations, not findings. "
+        "Research with communities is needed before choosing between them.")
+
+    recommendation(
+        "3 · Youth participation",
+        f"{millions(n['youth_not_registered'])} adults aged 18–29 are not registered — {pct(n['youth_share_of_missing'])} "
+        f"of everyone missing from the roll. Young adults are registered at a lower rate than adults overall in "
+        f"<b>{youth_below} of {len(d)}</b> municipalities.",
+        f"Youth registration rate {pct(n['youth_reg_rate'])} against {pct(n['older_reg_rate'])} for adults aged 30+ "
+        "(IEC registration by age, Census 2022).",
+        "Expand youth-focused voter education; communicate through channels young people use; explain what "
+        "municipalities are responsible for; make registration and voting information easy to access on a phone.",
+        "Turnout by age is not published, so we cannot say how young people vote once registered. Youth-specific "
+        "research is needed on why registration is lower.")
+
+    recommendation(
+        "4 · Data and research",
+        f"Some questions cannot be answered with the available data. In <b>{int(d['Census caution'].sum())}</b> small "
+        "municipalities more people are registered than the Census counted adults.",
+        "Population figures come only from Census 2022; youth turnout is not published; 2011 results had to be moved "
+        "onto today's boundaries; the model can predict turnout only within about ±5 points for three in four "
+        "municipalities.",
+        "Publish turnout by age group at municipal level; publish registration by age for past elections; update "
+        "population estimates between censuses; combine these numbers with community-level research.",
+        "Better data would show whether the gaps found here persist, and why they occur.")
+
+    panel("<b>What this page does not claim.</b> " + NOT_A_CAUSE + " The responses above are options to consider, "
+             "not conclusions of the model.")
+
+    # ------------------------------------------------------------------ where each gap is documented
+    st.markdown("### Where is each gap documented?")
+    st.caption("Listed alphabetically, not ranked. Use it to find the municipalities where a particular gap exists.")
+    area = st.radio("Gap", ["Registration gap", "Turnout gap", "Youth registration gap"], horizontal=True)
+    prov = st.selectbox("Province", ["All provinces"] + sorted(d["Province"].unique()), key="rec_prov")
+    t = d if prov == "All provinces" else d[d["Province"] == prov]
+    if area == "Registration gap":
+        t = t[t["Problem group"].isin(["Low registration", "Both low"])]
+        cols = {"Registration rate 2026": "Registration rate 2026",
+                "Registrations needed to reach typical": "Registrations to reach typical"}
+    elif area == "Turnout gap":
+        t = t[t["Problem group"].isin(["Low turnout", "Both low"])]
+        cols = {"Turnout 2021": "Turnout 2021", "Turnout used": "Turnout outlook 2026",
+                "Extra voters needed to reach typical": "Extra voters to reach typical"}
+    else:
+        t = t[t["Youth registration rate"] < t["Typical youth registration rate"]]
+        cols = {"Youth registration rate": "Youth registration rate", "Young adults not registered": "Young adults not registered"}
+    out = t[["Municipality", "Province", *cols]].rename(columns=cols).sort_values("Municipality").copy()
+    fmt = {}
+    for c in out.columns[2:]:
+        if "rate" in c.lower() or "Turnout" in c:
+            out[c] = (out[c].clip(upper=1) * 100).round(1)
+            fmt[c] = st.column_config.NumberColumn(format="%.0f%%")
+        else:
+            fmt[c] = st.column_config.NumberColumn(format="%d")
+    st.dataframe(out, hide_index=True, use_container_width=True, height=380, column_config=fmt)
+    st.download_button("Download this list (CSV)", out.to_csv(index=False).encode("utf-8"),
+                       f"democratic_funnel_{area.lower().replace(' ', '_')}.csv", "text/csv", type="primary")
+    st.caption(f"{len(out)} municipalities. 'Typical' = the median municipality. Rates above 100% (Census caution) are "
+               "shown as 100%.")
+
+
+# ================================================================== Electoral participation
+def participation_page():
+    page_header("Electoral participation", "Turnout trends 2011 → 2016 → 2021 by province and municipality, the 2021 context, and what the data cannot tell you.")
+    n = national(d)
+    bp = by_province(d)
+
+    st.markdown("Trends in municipal election participation, **2011 → 2016 → 2021**, nationally, by province and by "
+                "municipality.")
+
+    # ------------------------------------------------------------------ national + provinces
+    st.markdown("### Turnout by province")
+    fig = go.Figure()
+    for _, row in bp.iterrows():
+        fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[row[f"Turnout {y}"] for y in (2011, 2016, 2021)],
+                                 name=row["Province"], mode="lines+markers", line=dict(color="#b7c3dc", width=1.6),
+                                 marker=dict(size=6), showlegend=False,
+                                 hovertemplate=row["Province"] + " %{x}: %{y:.1%}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[n[f"turnout_{y}"] for y in (2011, 2016, 2021)], name="National",
+                             mode="lines+markers+text", text=[pct(n[f"turnout_{y}"], 1) for y in (2011, 2016, 2021)],
+                             textposition="top center", line=dict(color=NAVY, width=4), marker=dict(size=11),
+                             hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
+    fig.update_yaxes(tickformat=".0%", title="Turnout (votes ÷ registered)")
+    fig.update_xaxes(tickvals=[2011, 2016, 2021])
+    chart(fig, 420)
+    st.caption("Navy: national. Light lines: the nine provinces (hover for names).")
+
+    t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
+    t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
+    t = t.sort_values("Change 2016 → 2021")
+    for c in t.columns[1:]:
+        t[c] = (t[c] * 100).round(1)
+    st.dataframe(t, hide_index=True, use_container_width=True, column_config={
+        **{c: st.column_config.NumberColumn(format="%.1f%%") for c in
+           ["Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]},
+        "Change 2016 → 2021": st.column_config.NumberColumn(format="%+.1f points"),
+        "Participation 2021": st.column_config.NumberColumn("Participation 2021 (% of all adults)", format="%.1f%%")})
+
+    # ------------------------------------------------------------------ 2021 context
+    st.markdown("### The 2021 election in context")
+    drop = (n["turnout_2021"] - n["turnout_2016"]) * 100
+    panel(f"<b>What the data shows.</b> National turnout fell from {pct(n['turnout_2016'], 1)} (2016) to "
+             f"{pct(n['turnout_2021'], 1)} (2021), a change of {drop:+.1f} points. <b>Every province fell</b>, from "
+             f"{t['Change 2016 → 2021'].max():+.1f} to {t['Change 2016 → 2021'].min():+.1f} points. "
+             f"Registered voters: {millions(n['registered_2016'])} (2016) and {millions(n['registered_2021'])} (2021).<br>"
+             "<b>Context.</b> The 2021 election was held under COVID-19 restrictions on gatherings and campaigning. "
+             "A drop across every province is consistent with a national cause, but this data cannot separate the "
+             "effect of the pandemic from other reasons turnout may have changed.")
+
+    st.markdown("### How much municipalities differ")
+    fig = go.Figure()
+    for y, colour in [(2016, "#b7c3dc"), (2021, AMBER)]:
+        fig.add_trace(go.Histogram(x=d[f"Turnout {y}"], name=str(y), marker_color=colour, opacity=0.85, nbinsx=30,
+                                   hovertemplate=f"{y}: " + "%{x:.0%}: %{y} municipalities<extra></extra>"))
+    fig.update_layout(barmode="overlay")
+    fig.update_xaxes(tickformat=".0%", title="Turnout")
+    fig.update_yaxes(title="Municipalities")
+    chart(fig, 320)
+    st.caption(f"In 2021, municipal turnout ranged from {pct(d['Turnout 2021'].min())} to {pct(d['Turnout 2021'].max())}. "
+               "The whole distribution moved lower than in 2016.")
+
+    st.markdown("### Not included")
+    panel("<b>2006 results, the 2024 national election and municipal by-elections are not part of this analysis.</b> "
+             "Our comparisons use the three most recent municipal elections on today's boundaries. National and "
+             "municipal elections are not directly comparable, and single by-elections are not a reliable measure of "
+             "municipal or national engagement.")
+
+    # ------------------------------------------------------------------ limits
+    st.markdown("### What the data can't tell you")
+    panel("Election data shows <b>where</b> and <b>how much</b> participation differs. It cannot show <b>why</b>. "
+             "Explanations such as transport barriers, documentation problems, lack of information, residential "
+             "mobility, political attitudes, dissatisfaction or administrative barriers are <b>possible explanations "
+             "that need further evidence</b> — they are not conclusions of this analysis or of the model.", warn=True)
+
+
+# ================================================================== Voter education
+def voter_education_page():
+    page_header("Voter education", "How to take part in the local government elections on 4 November 2026. Information only — no political persuasion.")
+    st.markdown("### How do I take part in the local government elections?")
+    st.markdown("South Africa's next local government elections are on **4 November 2026**. Here is how to make sure "
+                "you can vote. Always check the **Electoral Commission (IEC)** for the latest official information.")
+
+    IEC = "https://www.elections.org.za"
+    PORTAL = "https://registertovote.elections.org.za"
+    FINDER = "https://maps.elections.org.za/vsfinder/"
+
+    c = st.columns(2)
+    info_card(c[0], "✅", "Am I registered?",
+            f"<p>SMS your ID number to <b>32810</b> (costs R1), or check online on the "
+            f"<a href='{PORTAL}' target='_blank'>IEC voter portal</a>. You will see whether you are registered and "
+            "where your voting station is.</p>")
+    info_card(c[1], "📍", "Where do I vote?",
+            f"<p>You vote at the voting station where you are registered. Find it with the "
+            f"<a href='{FINDER}' target='_blank'>IEC voting station finder</a>, the official IEC app, or by SMS to "
+            "<b>32810</b>.</p>")
+    st.write("")
+    c = st.columns(2)
+    info_card(c[0], "📝", "How do I register?",
+            f"<ol><li>You must be a <b>South African citizen</b> aged <b>16 or older</b> (you can vote from 18).</li>"
+            f"<li>Register <b>online</b> at <a href='{PORTAL}' target='_blank'>registertovote.elections.org.za</a>, "
+            "at your <b>local IEC office</b>, at your voting station during a <b>registration weekend</b>, or at an IEC "
+            "registration event.</li><li>Nobody can register for you — you must do it yourself.</li>"
+            "<li>Registration closes when the election is proclaimed, so do not wait.</li></ol>")
+    info_card(c[1], "🪪", "What do I need?",
+            "<p>One of these original documents from Home Affairs:</p><ul><li>green, barcoded ID book</li>"
+            "<li>smart ID card</li><li>valid Temporary Identity Certificate</li></ul>"
+            "<p>No other identification is accepted. Bring the same document when you vote.</p>")
+    st.write("")
+    c = st.columns(2)
+    info_card(c[0], "🏠", "What if I have moved?",
+            f"<p>You must <b>update your registration</b> when you move to a new address, so that you vote in the ward "
+            f"where you now live. You can do this <a href='{PORTAL}' target='_blank'>online</a> or at your local IEC "
+            "office before registration closes.</p>")
+    info_card(c[1], "♿", "What are special votes?",
+            f"<p>If you cannot vote at your voting station on election day, you can <b>apply for a special vote</b>. "
+            "Voters who are physically infirm, disabled or pregnant can ask for a <b>home visit</b>; others vote at "
+            f"their voting station before election day. You must apply within the period set by the IEC — see "
+            f"<a href='{IEC}' target='_blank'>elections.org.za</a>.</p>")
+    st.write("")
+
+    st.markdown("### Why do local elections matter?")
+    st.markdown(dedent("""
+    Your **municipal council** makes decisions that affect daily life. Municipalities are responsible for services such as:
+
+    - **water** and **sanitation**
+    - **electricity** distribution in many areas
+    - **refuse removal**
+    - **local roads**, streetlights and storm-water drains
+    - local **planning**, building approvals, parks and community facilities
+
+    In local government elections you vote for a **ward councillor** (the person who represents your ward) and for a
+    **party** on the proportional ballot; outside the metros there is also a party ballot for the district council.
+    These votes decide who sits on the council and who governs your municipality for the next five years.
+    """))
+    panel("This page gives voter information only. It does not recommend any party or candidate. For official "
+             f"information, visit <a href='{IEC}' target='_blank'>elections.org.za</a>.")
+
+
 # ================================================================== navigation: ☰ Menu (top left)
 nav = st.navigation([
     st.Page(overview, title="Overview", icon="🏠", url_path="overview", default=True),
     st.Page(map_page, title="Map", icon="🗺️", url_path="map"),
     st.Page(profile, title="Municipality profile", icon="🏛️", url_path="profile"),
     st.Page(priority_list, title="Priority list", icon="📋", url_path="priority"),
+    st.Page(recommendations_page, title="Recommendations", icon="💡", url_path="recommendations"),
+    st.Page(participation_page, title="Electoral participation", icon="📊", url_path="participation"),
+    st.Page(voter_education_page, title="Voter education", icon="🗳️", url_path="voter-education"),
     st.Page(about, title="About", icon="ℹ️", url_path="about"),
 ], position="sidebar")
 st.sidebar.caption("The Democratic Funnel · Team UL · DIRISA Student Datathon Challenge 2026")
 nav.run()
+
+# ------------------------------------------------------------------ footer (every page)
+st.markdown(f"""
+<div class="footer">
+  <img src="{img64('partners_footer.png')}" alt="Department of Science, Technology and Innovation · CSIR · NICIS DIRISA">
+  <div class="txt">
+    <b>The Democratic Funnel</b> · Team UL, University of Limpopo · DIRISA Student Datathon Challenge 2026<br>
+    A student project. Not an official publication of DIRISA, NICIS, the CSIR, the Department of Science, Technology
+    and Innovation or the Electoral Commission.<br>
+    Data: Electoral Commission of South Africa (IEC) · Statistics South Africa, Census 2022 · Municipal Demarcation Board
+  </div>
+</div>""", unsafe_allow_html=True)
