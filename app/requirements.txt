@@ -1,0 +1,4 @@
+# Only what the deployed dashboard needs (Streamlit Community Cloud installs this file, not the root one)
+streamlit>=1.40
+pandas>=2.1
+plotly>=5.18
