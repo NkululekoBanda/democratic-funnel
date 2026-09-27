@@ -37,6 +37,43 @@ function colours() {
 }
 const groupColour = (g, c = colours()) => ({ "Low registration": c.blue, "Low turnout": c.amber, "Both low": c.crimson, "Healthy": c.green }[g]);
 
+/* ------------------------------------------------------------------ searchable dropdown */
+// combo(root, onPick, {keep}): root holds an <input>, a .combo-arrow button and a .combo-list <ul>.
+// The arrow (or clicking into the box) always opens the full list; typing filters it. keep = leave the name in the box.
+function combo(root, onPick, opts = {}) {
+  const input = $("input", root), list = $(".combo-list", root), arrow = $(".combo-arrow", root);
+  const all = [...DATA.rows].sort((a, b) => a.Municipality.localeCompare(b.Municipality));
+  let items = [], active = -1, typed = false;
+  const draw = () => {
+    const q = typed ? input.value.trim().toLowerCase() : "";
+    items = q ? all.filter((r) => label(r).toLowerCase().includes(q)) : all;
+    active = Math.min(active, items.length - 1);
+    list.innerHTML = items.length ? items.map((r, i) => `<li role="option" data-i="${i}" class="${i === active ? "active" : ""} ${label(r) === input.value ? "sel" : ""}">
+      ${esc(r.Municipality)}<small>${r.Province}</small></li>`).join("") : `<li class="none">No municipality matches "${esc(input.value)}"</li>`;
+  };
+  const open = () => { root.classList.add("open"); input.setAttribute("aria-expanded", "true"); draw();
+                       const sel = $("li.sel", list); if (sel) sel.scrollIntoView({ block: "nearest" }); };
+  const close = () => { root.classList.remove("open"); input.setAttribute("aria-expanded", "false"); typed = false; active = -1; };
+  const pick = (r) => { input.value = opts.keep ? label(r) : ""; close(); input.blur(); onPick(r); };
+  input.addEventListener("focus", () => { if (opts.keep) input.select(); typed = false; open(); });
+  input.addEventListener("click", () => { if (!root.classList.contains("open")) open(); });
+  input.addEventListener("input", () => { typed = true; active = 0; open(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); if (!root.classList.contains("open")) open();
+      active = Math.max(0, Math.min(items.length - 1, active + (e.key === "ArrowDown" ? 1 : -1))); draw();
+      const a = $("li.active", list); if (a) a.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { e.preventDefault(); if (items[Math.max(active, 0)]) pick(items[Math.max(active, 0)]); }
+    else if (e.key === "Escape") { close(); input.blur(); }
+  });
+  arrow.addEventListener("mousedown", (e) => { e.preventDefault(); });
+  arrow.addEventListener("click", () => { if (root.classList.contains("open")) close(); else { typed = false; input.focus(); open(); } });
+  list.addEventListener("mousedown", (e) => e.preventDefault());
+  list.addEventListener("click", (e) => { const li = e.target.closest("li[data-i]"); if (li) pick(items[+li.dataset.i]); });
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  return { set: (r) => { input.value = label(r); } };
+}
+
 /* ------------------------------------------------------------------ charts */
 function chartDefaults() {
   const c = colours();
@@ -127,7 +164,10 @@ function route() {
   $$(".page").forEach((p) => p.classList.toggle("on", p.id === "page-" + page));
   $$(".rail-nav a").forEach((a) => a.classList.toggle("on", a.dataset.page === page));
   if (page === "map" && MAP.map) setTimeout(() => MAP.map.invalidateSize(), 30);
-  if (page === "profile" && arg) showProfile(decodeURIComponent(arg));
+  if (page === "profile") {
+    const code = arg ? decodeURIComponent(arg) : (PROFILE_SHOWN || DEFAULT_PROFILE);
+    if (code !== PROFILE_SHOWN) showProfile(code);
+  }
   window.scrollTo({ top: 0 });
   document.title = PAGES[page][0] + " · The Democratic Funnel";
 }
@@ -348,18 +388,21 @@ function buildMap(body) {
 let profileChart = [];
 function buildProfile(body) {
   body.innerHTML = `
-  <div class="prof-pick"><input id="prof-input" list="muni-list" placeholder="Type a municipality, e.g. Polokwane, eThekwini, Mbombela"></div>
+  <div class="prof-pick"><div class="combo" id="prof-combo"><span class="msr">location_city</span>
+    <input id="prof-input" placeholder="Type or pick a municipality" autocomplete="off" role="combobox" aria-expanded="false">
+    <button class="combo-arrow" type="button" tabindex="-1" aria-label="Show all municipalities"><span class="msr">expand_more</span></button>
+    <ul class="combo-list" role="listbox"></ul></div></div>
   <div id="prof-out"><div class="empty"><span class="msr">location_city</span>Start typing a name above, use the search at the top,
   or click a municipality on the <a href="#/map">map</a>.</div></div>`;
-  $("#prof-input").addEventListener("change", (e) => {
-    const r = DATA.rows.find((x) => label(x) === e.target.value);
-    if (r) location.hash = "#/profile/" + r.Code;
-  });
+  PROFILE_COMBO = combo($("#prof-combo"), (r) => { location.hash = "#/profile/" + r.Code; }, { keep: true });
 }
+let PROFILE_COMBO = null, PROFILE_SHOWN = null;
+const DEFAULT_PROFILE = "LIM354";            // Polokwane, home of the University of Limpopo
 function showProfile(code) {
   const r = byCode()[code];
   if (!r) return;
-  $("#prof-input").value = label(r);
+  PROFILE_SHOWN = code;
+  PROFILE_COMBO.set(r);
   const n = DATA.national, g = r["Problem group"], caution = r["Census caution"];
   const reg = num(r["Registrations needed to reach typical"]), vot = num(r["Extra voters needed to reach typical"]);
   let send = {
@@ -782,6 +825,15 @@ function buildTeam(body) {
 function start() {
   chartDefaults();
   $("#theme-btn").addEventListener("click", toggleTheme);
+  // team pop-up in the header: the chip opens and closes it; a click anywhere else closes it
+  const teamWrap = $(".team-wrap");
+  $("#team-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    teamWrap.classList.toggle("open");
+    $("#team-btn").setAttribute("aria-expanded", teamWrap.classList.contains("open"));
+  });
+  document.addEventListener("click", (e) => { if (!teamWrap.contains(e.target)) teamWrap.classList.remove("open"); });
+  $(".team-pop-link").addEventListener("click", () => teamWrap.classList.remove("open"));
   // follow the system setting live, unless the viewer picked a theme themselves
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
     let saved = null; try { saved = localStorage.getItem("df-theme"); } catch (x) {}
@@ -791,11 +843,7 @@ function start() {
     DATA = d;
     // start loading the map boundaries straight away, once, so the map is ready when it is opened
     geoPromise = fetch("api/geo").then((r) => r.json()).then((g) => { GEO = g; });
-    $("#muni-list").innerHTML = [...DATA.rows].sort((a, b) => a.Municipality.localeCompare(b.Municipality)).map((r) => `<option value="${esc(label(r))}">`).join("");
-    $("#search").addEventListener("change", (e) => {
-      const r = DATA.rows.find((x) => label(x) === e.target.value);
-      if (r) { location.hash = "#/profile/" + r.Code; e.target.value = ""; }
-    });
+    combo($("#search-combo"), (r) => { location.hash = "#/profile/" + r.Code; });
     $("#loading").remove();
     window.addEventListener("hashchange", route);
     route();
