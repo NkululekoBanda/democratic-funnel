@@ -210,7 +210,7 @@ function buildOverview(body) {
         </div></div>
       <div class="scroll-x"><table class="tbl"><thead><tr><th>Municipality</th><th class="num">Registered</th><th class="num">${n.has_pred ? "Turnout 2026" : "Turnout 2021"}</th>
         <th class="hide-sm">Problem</th><th class="num hide-sm">To reach typical</th></tr></thead><tbody id="ov-rows"></tbody></table></div>
-      <div style="margin-top:12px"><a class="link-more" href="#/priority">See the full priority list →</a></div>
+      <div style="margin-top:12px"><a class="link-more" href="#/priority">See the full priority list</a></div>
     </div>
     <div class="promo">
       <h3>Not on the <span class="tag">voters' roll</span> yet?</h3>
@@ -223,13 +223,15 @@ function buildOverview(body) {
   <div class="grid g2" style="margin-top:18px">
     <div class="card"><h3>The funnel, 2021: out of every 100 adults</h3>
       <div class="chart-box" style="height:200px"><canvas id="ov-funnel"></canvas></div>
-      <div class="caption">About ${Math.round(100 - 100 * reg21)} of every 100 adults were lost before registering, and another
-      ${Math.round(100 * reg21 - 100 * vote21)} after registering. The official turnout figure only shows the second loss.</div></div>
-    <div class="card"><h3>Every municipality has one of four problems</h3>
+      <div class="caption">About ${Math.round(100 - 100 * reg21)} of every 100 adults were lost before registering, and another 35
+      after registering. The official turnout figure only shows the second loss.</div></div>
+    <div class="card"><h3>Every municipality falls into one of the four groups</h3>
       <div class="groups">${GROUPS.map((g) => `<div class="group">${pill(g)}<b>${n.groups[g]}</b></div>`).join("")}</div>
       <div class="caption">Compared with a typical municipality, using the 2026 roll and ${turnoutLabel().toLowerCase()}.
       Open the <a href="#/map">Map</a> to see where they are, or the <a href="#/profile">profile</a> to look up your own.</div></div>
   </div>`;
+
+  // ${Math.round(100 * reg21 - 100 * vote21)} 
 
   // hero chart: turnout (actual + forecast) or registration
   let heroView = "t";
@@ -816,7 +818,7 @@ function buildAbout(body) {
 
 /* ------------------------------------------------------------------ 9. team */
 function buildTeam(body) {
-  const team = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Quathi", "Thato"];
+  const team = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Khwathisedzo", "Thato"];
   body.innerHTML = `<div class="team-grid">${team.map((t) => `<div class="member"><div class="ring">
     <img src="${window.STATIC}img/team/${t.toLowerCase()}.jpg" alt="${t}" loading="lazy"></div><b>${t}</b><span>Team UL</span></div>`).join("")}</div>`;
 }

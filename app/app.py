@@ -254,7 +254,7 @@ def by_province(df):
 
 
 def chart(fig, height=360):
-    # Text and grid colours come from Streamlit's chart theme, so they follow light / dark mode.
+
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title=None),
@@ -273,10 +273,6 @@ st.markdown(f"""
   <img class="ul" src="{img64('ul_logo.png')}" alt="University of Limpopo">
 </div>""", unsafe_allow_html=True)
 
-# ------------------------------------------------------------------ light / dark mode
-# Streamlit follows the viewer's system setting (both themes are in .streamlit/config.toml). The button saves the
-# other theme in the browser the same way Streamlit's own Settings menu does, and reloads. The script also marks the
-# page html[data-theme] so the custom cards and charts above follow Streamlit's theme.
 PAGE_SLUGS = ["overview", "map", "profile", "priority", "recommendations", "participation", "voter-education", "about"]
 st.html(r"""
 <div class="modebar"><button class="modebtn" id="df-mode" type="button" title="Switch between light and dark mode">
@@ -311,7 +307,7 @@ st.html(r"""
 </script>""" % json.dumps(PAGE_SLUGS), unsafe_allow_javascript=True)
 
 
-# ================================================================== 1. overview
+# ==================================================================overview
 def overview():
     page_header("Overview", "The national picture: where people are lost between being eligible, registering and voting.")
     st.markdown(f"<div style='font-size:1.35rem;font-weight:600;margin:4px 0 14px'>People are lost at two points: "
@@ -368,12 +364,12 @@ def overview():
         st.caption("Turnout = votes cast ÷ registered voters. It fell about 12 points in the 2021 COVID election.")
 
     counts = d["Problem group"].value_counts().reindex(GROUPS, fill_value=0)
-    st.markdown("#### Every municipality has one of four problems")
+    st.markdown("#### Every municipality falls into one of four groups")
     st.markdown(" &nbsp; ".join(f"{pill(g)} <b>{counts[g]}</b>" for g in GROUPS), unsafe_allow_html=True)
     st.caption(f"Compared with a typical municipality, using the 2026 roll and {TURNOUT_LABEL.lower()}. "
                "Open the Map to see where they are, or the Municipality profile to look up your own.")
 
-# ================================================================== 2. map
+# ==================================================================map
 def map_page():
     page_header("Map", "Every municipality by its problem group. Filter by province or group; hover or tap for details.")
     c1, c2 = st.columns([1, 2])
@@ -419,7 +415,7 @@ def map_page():
                      column_config={c: st.column_config.NumberColumn(format="percent")
                                     for c in ["Registration rate 2026", "Turnout 2021", "Predicted turnout 2026"]})
 
-# ================================================================== 3. municipality profile
+# ================================================================== municipality profile
 def profile():
     page_header("Municipality profile", "Look up any municipality: its funnel, its problem, what to send, and its 2026 outlook.")
     labels = (d["Municipality"] + " (" + d["Province"] + ")").tolist()
@@ -533,7 +529,7 @@ def profile():
             st.warning("*More people are registered here than the Census 2022 counted adults. The Census sample is "
                        "small in this municipality, so its registration rate is not reliable.", icon=":material/warning:")
 
-# ================================================================== 4. priority list
+# ================================================================== priority list
 def priority_list():
     page_header("Priority list", "Municipalities ranked by how far they are below a typical municipality, with the gap split into its two parts.")
     st.markdown("#### Where to act before 4 November 2026")
@@ -579,7 +575,7 @@ def priority_list():
                        "democratic_funnel_priority_list.csv", "text/csv", type="primary")
     st.caption(f"{len(p)} municipalities shown. Registration rates above 100% (Census caution) are counted as 100%.")
 
-# ================================================================== 5. about
+# ==================================================================  about
 def about():
     page_header("About", "The problem, how we measured it, how the prediction works, our data sources and the limitations.")
     st.markdown(f"""
@@ -1024,9 +1020,8 @@ def eda_charts(n, bp):
 
 
 # ================================================================== Our team
-# Photos: app/static/team/<name>.jpg (square headshots). ROLE_OF maps each person to the pipeline role(s) they
-# owned (the "Owner" letters at the top of each notebook); a person with no role yet shows as "Team UL".
-TEAM = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Quathi", "Thato"]
+
+TEAM = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Khwathisedzo", "Thato"]
 ROLE_OF = {}                                   # e.g. {"Thato": ["A"], "Nkululeko": ["F"]}
 ROLE_TITLE = {"A": "Election results", "B": "Voter registration", "C": "National elections & by-elections",
               "D": "Census data", "E": "Geography", "F": "Master table, model & dashboard"}
