@@ -111,15 +111,6 @@ st.markdown(f"""
   .footer img {{ width: 100%; max-width: 900px; display: block; margin: 0 auto 12px; }}
   .footer .txt {{ text-align: center; color: {INK2}; font-size: .86rem; line-height: 1.55; }}
   /* Our team page */
-  .team-hero {{ position: relative; overflow: hidden; border-radius: 16px; padding: 28px 30px 22px; margin: 6px 0 26px;
-                color: #fff; background: linear-gradient(120deg, {NAVY} 0%, #24407a 55%, {DIRISA_ORANGE} 140%); }}
-  .team-hero::after {{ content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px;
-                       border-radius: 50%; background: rgba(238, 121, 0, .35); }}
-  .team-hero-t {{ font-size: 2rem; font-weight: 800; line-height: 1.1; position: relative; z-index: 1; }}
-  .team-hero-s {{ max-width: 720px; margin-top: 8px; opacity: .92; position: relative; z-index: 1; }}
-  .team-stats {{ display: flex; flex-wrap: wrap; gap: 26px; margin-top: 20px; position: relative; z-index: 1; }}
-  .team-stats b {{ display: block; font-size: 1.9rem; line-height: 1; }}
-  .team-stats span {{ font-size: .88rem; opacity: .85; }}
   .team-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-bottom: 30px; }}
   .member {{ text-align: center; background: var(--surface); border: 1px solid var(--grid); border-radius: 16px;
              padding: 22px 14px 18px; box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease; }}
@@ -131,19 +122,8 @@ st.markdown(f"""
   .member-name {{ font-size: 1.25rem; font-weight: 800; color: var(--accent); }}
   .member-role {{ display: inline-block; margin-top: 6px; padding: 3px 12px; border-radius: 999px; font-size: .85rem;
                   font-weight: 600; color: var(--accent); background: var(--panel); }}
-  .pipeline {{ display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 6px 2px 14px; }}
-  .step {{ flex: 1 1 0; min-width: 128px; background: var(--surface); border: 1px solid var(--grid); border-radius: 14px;
-           padding: 12px 10px; text-align: center; border-top: 4px solid {DIRISA_ORANGE}; }}
-  .step-icon {{ font-size: 1.7rem; color: {DIRISA_ORANGE}; }}
-  .step-what {{ font-weight: 700; color: var(--accent); font-size: .92rem; line-height: 1.25; margin-top: 4px; }}
-  .step-nb {{ font-size: .78rem; color: var(--ink2); margin-top: 2px; font-family: monospace; }}
-  .step-faces {{ margin-top: 8px; min-height: 40px; }}
-  .step-faces img {{ width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--surface);
-                     box-shadow: 0 0 0 2px {DIRISA_ORANGE}; margin: 0 -4px; }}
-  .step-names {{ font-size: .8rem; color: var(--ink2); margin-top: 4px; }}
-  .step-arrow {{ align-self: center; color: var(--ink2); font-size: 1.3rem; }}
   @media (max-width: 900px) {{ .team-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
-  @media (max-width: 560px) {{ .team-grid {{ grid-template-columns: 1fr; }} .step-arrow {{ display: none; }} }}
+  @media (max-width: 560px) {{ .team-grid {{ grid-template-columns: 1fr; }} }}
   /* Charts in dark mode: navy and dark grey marks are lifted so they stay visible on the dark background.
      (Plotly writes colours inline, so they are matched by their rgb() value.) */
   html[data-theme="dark"] .js-plotly-plot [style*="stroke: rgb(27, 47, 91)"] {{ stroke: #7f9ad6 !important; }}
@@ -1058,16 +1038,8 @@ def eda_charts(n, bp):
 # ================================================================== Our team
 # Photos: app/static/team/<name>.jpg (square headshots). ROLE_OF maps each person to the pipeline role(s) they
 # owned (the "Owner" letters at the top of each notebook); a person with no role yet shows as "Team UL".
-TEAM = ["Ashley", "Morongwa", "Mthokozisi", "Nkululeko", "Quathi", "Thato"]
+TEAM = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Quathi", "Thato"]
 ROLE_OF = {}                                   # e.g. {"Thato": ["A"], "Nkululeko": ["F"]}
-PIPELINE = [                                   # role letter, what it produced, notebook(s), icon
-    ("A", "Election results 2011–2021", "01_results_lge", "how_to_vote"),
-    ("B", "2026 voter registration", "02_registration", "app_registration"),
-    ("C", "2019 & 2024 national elections", "03_byelections_npe", "ballot"),
-    ("D", "Census 2022", "04_census", "groups"),
-    ("E", "Boundaries & neighbours", "05_geography", "map"),
-    ("F", "Master table, model & dashboard", "06 – 09", "hub"),
-]
 ROLE_TITLE = {"A": "Election results", "B": "Voter registration", "C": "National elections & by-elections",
               "D": "Census data", "E": "Geography", "F": "Master table, model & dashboard"}
 
@@ -1079,15 +1051,6 @@ def photo64(name):
 
 def team_page():
     page_header("Our team", "Team UL, University of Limpopo · DIRISA Student Datathon Challenge 2026")
-    n_notebooks = len(list((Path(__file__).resolve().parent.parent / "notebooks").glob("*.ipynb"))) or 14
-    stats = [("6", "students"), (str(n_notebooks), "notebooks"), ("6", "public data sources"),
-             (str(len(d)), "municipalities"), ("1", "dashboard")]
-    st.markdown("<div class='team-hero'><div class='team-hero-t'>Six students. One funnel.</div>"
-                "<div class='team-hero-s'>We followed South Africa's adults from being eligible, to registering, to "
-                "voting — and built this dashboard so anyone can see where local democracy leaks.</div>"
-                "<div class='team-stats'>" + "".join(f"<div><b>{v}</b><span>{k}</span></div>" for v, k in stats) +
-                "</div></div>", unsafe_allow_html=True)
-
     cards = []
     for name in TEAM:
         roles = ROLE_OF.get(name, [])
@@ -1095,21 +1058,6 @@ def team_page():
         cards.append(f"<div class='member'><div class='avatar'><img src='{photo64(name)}' alt='{name}'></div>"
                      f"<div class='member-name'>{name}</div><div class='member-role'>{chip}</div></div>")
     st.markdown("<div class='team-grid'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
-
-    st.markdown("### Who built which step")
-    st.caption("The dashboard is the end of a pipeline: every step is a notebook, and every notebook has an owner.")
-    steps = []
-    for letter, what, nb, icon in PIPELINE:
-        owners = [p for p in TEAM if letter in ROLE_OF.get(p, [])]
-        faces = "".join(f"<img src='{photo64(p)}' alt='{p}' title='{p}'>" for p in owners)
-        names = ", ".join(owners) if owners else "&nbsp;"
-        steps.append(f"<div class='step'><div class='step-icon msr'>{icon}</div><div class='step-what'>{what}</div>"
-                     f"<div class='step-nb'>{nb}</div><div class='step-faces'>{faces}</div>"
-                     f"<div class='step-names'>{names}</div></div>")
-    st.markdown("<div class='pipeline'>" + "<div class='step-arrow msr'>arrow_forward</div>".join(steps) + "</div>",
-                unsafe_allow_html=True)
-    panel("<b>Everyone presents.</b> Each of us walks through the part we built in our 15-minute presentation — "
-          "from raw IEC files to the forecast on this dashboard.")
 
 
 # ================================================================== navigation: Menu (top left)
