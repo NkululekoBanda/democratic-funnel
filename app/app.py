@@ -20,6 +20,8 @@ st.set_page_config(page_title="The Democratic Funnel", page_icon=":material/how_
 
 # ------------------------------------------------------------------ house style (same as 07_eda)
 BLUE, AMBER, CRIMSON, GREEN, NAVY = "#2a78d6", "#eda100", "#a3143a", "#7bc586", "#1b2f5b"
+LIGHT_BLUE, LIGHT_AMBER = "#9ec5f0", "#f6d58a"          # tints for older elections (no grey: team rule)
+YEAR_COLOURS = {2011: LIGHT_BLUE, 2016: LIGHT_AMBER, 2021: AMBER}
 DIRISA_ORANGE = "#ee7900"
 INK, INK2, GRID = "#0b0b0b", "#4a4a47", "#e4e3de"
 GROUPS = ["Low registration", "Low turnout", "Both low", "Healthy"]
@@ -729,21 +731,21 @@ def participation_page():
                 "municipality.")
 
     # ------------------------------------------------------------------ national + provinces
-    st.markdown("### Turnout by province")
+    # same chart as 07_eda Q2: one bar per election, provinces sorted by 2021 turnout (highest at the top)
+    st.markdown("### Turnout fell in every province in 2021")
+    order = bp.sort_values("Turnout 2021")
     fig = go.Figure()
-    for _, row in bp.iterrows():
-        fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[row[f"Turnout {y}"] for y in (2011, 2016, 2021)],
-                                 name=row["Province"], mode="lines+markers", line=dict(color="#b7c3dc", width=1.6),
-                                 marker=dict(size=6), showlegend=False,
-                                 hovertemplate=row["Province"] + " %{x}: %{y:.1%}<extra></extra>"))
-    fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[n[f"turnout_{y}"] for y in (2011, 2016, 2021)], name="National",
-                             mode="lines+markers+text", text=[pct(n[f"turnout_{y}"], 1) for y in (2011, 2016, 2021)],
-                             textposition="top center", line=dict(color=NAVY, width=4), marker=dict(size=11),
-                             hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
-    fig.update_yaxes(tickformat=".0%", title="Turnout (votes ÷ registered)")
-    fig.update_xaxes(tickvals=[2011, 2016, 2021])
-    chart(fig, 420)
-    st.caption("Navy: national. Light lines: the nine provinces (hover for names).")
+    for y in (2021, 2016, 2011):                     # drawn bottom-up, so 2011 sits on top within each province
+        fig.add_trace(go.Bar(y=order["Province"], x=order[f"Turnout {y}"], orientation="h", name=str(y),
+                             marker_color=YEAR_COLOURS[y], text=[pct(v, 1) for v in order[f"Turnout {y}"]],
+                             textposition="outside", cliponaxis=False, textfont=dict(size=13),
+                             hovertemplate="%{y} " + str(y) + ": %{x:.1%}<extra></extra>"))
+    fig.update_layout(barmode="group", bargap=0.22, bargroupgap=0.05, legend_traceorder="reversed")
+    fig.update_xaxes(tickformat=".0%", range=[0, 0.8], title="Turnout (votes ÷ registered)")
+    fig.update_yaxes(title=None)
+    chart(fig, 640)
+    st.caption(f"Nationally, turnout was {pct(n['turnout_2011'], 1)} (2011), {pct(n['turnout_2016'], 1)} (2016) and "
+               f"{pct(n['turnout_2021'], 1)} (2021). Provinces are sorted by 2021 turnout, highest at the top.")
 
     t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
     t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
