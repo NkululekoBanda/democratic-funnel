@@ -15,3 +15,7 @@ backgroundColor = "#0f1420"
 secondaryBackgroundColor = "#1b2435"
 textColor = "#e9ecf2"
 linkColor = "#8fb4ff"
+
+# Viewers only see the page: no "Deploy" button or developer menu on the published site
+[client]
+toolbarMode = "viewer"

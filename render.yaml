@@ -1,0 +1,15 @@
+# Render Blueprint for the dashboard (render.com -> New -> Blueprint -> pick this repo).
+# The app reads only app/artifacts/ (committed), so no Drive access or secrets are needed.
+# Switch branch to main once the dashboard pull requests are merged.
+services:
+  - type: web
+    name: democratic-funnel
+    runtime: python
+    plan: free
+    branch: nkululeko
+    buildCommand: pip install -r app/requirements.txt
+    startCommand: streamlit run app/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
