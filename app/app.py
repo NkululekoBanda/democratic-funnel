@@ -715,29 +715,17 @@ def recommendations_page():
 
 # ================================================================== Electoral participation
 def participation_page():
-    page_header("Electoral participation", "Turnout trends 2011 → 2016 → 2021 by province and municipality, the 2021 context, and what the data cannot tell you.")
+    page_header("Electoral participation", "Registration and turnout 2011 → 2026, by province and municipality, who "
+                "registers, what goes with low turnout, the 2021 context, and what the data cannot tell you.")
     n = national(d)
     bp = by_province(d)
 
     st.markdown("Trends in municipal election participation, **2011 → 2016 → 2021**, nationally, by province and by "
                 "municipality.")
 
-    # ------------------------------------------------------------------ national + provinces
-    st.markdown("### Turnout by province")
-    province_chart(bp)
-    st.caption(f"Nationally, turnout was {pct(n['turnout_2011'], 1)} (2011), {pct(n['turnout_2016'], 1)} (2016) and "
-               f"{pct(n['turnout_2021'], 1)} (2021). Provinces are sorted by 2021 turnout, highest at the top.")
-
-    t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
-    t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
-    t = t.sort_values("Change 2016 → 2021")
-    for c in t.columns[1:]:
-        t[c] = (t[c] * 100).round(1)
-    st.dataframe(t, hide_index=True, use_container_width=True, column_config={
-        **{c: st.column_config.NumberColumn(format="%.1f%%") for c in
-           ["Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]},
-        "Change 2016 → 2021": st.column_config.NumberColumn(format="%+.1f points"),
-        "Participation 2021": st.column_config.NumberColumn("Participation 2021 (% of all adults)", format="%.1f%%")})
+    # ------------------------------------------------------------------ the charts of 07_eda
+    eda_charts(n, bp)
+    t = bp.assign(**{"Change 2016 → 2021": ((bp["Turnout 2021"] - bp["Turnout 2016"]) * 100).round(1)})
 
     # ------------------------------------------------------------------ 2021 context
     st.markdown("### The 2021 election in context")
@@ -752,7 +740,7 @@ def participation_page():
 
     st.markdown("### How much municipalities differ")
     fig = go.Figure()
-    for y, colour in [(2016, "#b7c3dc"), (2021, AMBER)]:
+    for y, colour in [(2016, LIGHT_BLUE), (2021, AMBER)]:
         fig.add_trace(go.Histogram(x=d[f"Turnout {y}"], name=str(y), marker_color=colour, opacity=0.85, nbinsx=30,
                                    hovertemplate=f"{y}: " + "%{x:.0%}: %{y} municipalities<extra></extra>"))
     fig.update_layout(barmode="overlay")
@@ -839,7 +827,7 @@ def voter_education_page():
              f"information, visit <a href='{IEC}' target='_blank'>elections.org.za</a>.")
 
 
-# ================================================================== Key findings: the charts of 07_eda
+# ================================================================== the charts of 07_eda (Electoral participation)
 def province_chart(bp):
     """07_eda Q2: one bar per election, provinces sorted by 2021 turnout (highest at the top)."""
     order = bp.sort_values("Turnout 2021")
@@ -855,15 +843,11 @@ def province_chart(bp):
     chart(fig, 640)
 
 
-def findings_page():
-    page_header("Key findings", "The charts from our exploratory analysis (07_eda): registration and turnout, who, "
-                                "what goes with low turnout, and where.")
-    n, bp = national(d), by_province(d)
+def eda_charts(n, bp):
+    """The charts of 07_eda, in the order the team asked for on the Electoral participation page."""
     adults = d["Adults who may vote"].sum()
 
-    # ------------------------------------------------------------------ A. turnout and registration
-    st.markdown("## A. Turnout and registration")
-    st.markdown("### Q1. Registration vs Turnout (2011-2026)")
+    st.markdown("### Turnout and registration")
     yrs = [2011, 2016, 2021, 2026]
     reg = [d[f"Registered {y}"].sum() / adults for y in yrs]
     tur = [n[f"turnout_{y}"] for y in yrs[:3]]
@@ -887,15 +871,25 @@ def findings_page():
                 "COVID election. The problem is less getting people registered and more getting registered voters "
                 "to the polls.")
 
-    st.markdown("### Q2. Turnout by province")
+    st.markdown("### How does turnout differ between provinces?")
     province_chart(bp)
     fall = (bp["Turnout 2021"] - bp["Turnout 2016"]) * 100
     st.markdown(f"Turnout fell in **every province** in 2021, by about **{-fall.max():.0f} to {-fall.min():.0f} points**. "
                 f"**{bp.loc[bp['Turnout 2021'].idxmax(), 'Province']}** had the highest turnout in 2021 "
                 f"({pct(bp['Turnout 2021'].max())}); the lowest was **{bp.loc[bp['Turnout 2021'].idxmin(), 'Province']}** "
                 f"({pct(bp['Turnout 2021'].min(), 1)}).")
+    t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
+    t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
+    t = t.sort_values("Change 2016 → 2021")
+    for c in t.columns[1:]:
+        t[c] = (t[c] * 100).round(1)
+    st.dataframe(t, hide_index=True, use_container_width=True, column_config={
+        **{c: st.column_config.NumberColumn(format="%.1f%%") for c in
+           ["Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]},
+        "Change 2016 → 2021": st.column_config.NumberColumn(format="%+.1f points"),
+        "Participation 2021": st.column_config.NumberColumn("Participation 2021 (% of all adults)", format="%.1f%%")})
 
-    st.markdown("### Q3. The 10 municipalities with the lowest average turnout (2011–2021)")
+    st.markdown("### The top 10 municipalities with the lowest turnout, 2011–2021")
     tw = d.set_index("Municipality")[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021"]].copy()
     tw["Average"] = tw[["Turnout 2011", "Turnout 2016", "Turnout 2021"]].mean(axis=1)
     low = tw.nsmallest(10, "Average").iloc[::-1]
@@ -925,9 +919,7 @@ def findings_page():
                 " Low turnout is a share of *registered* voters: a municipality with low turnout may still have a "
                 "full roll, and the other way round.")
 
-    # ------------------------------------------------------------------ B. who
-    st.markdown("## B. Who")
-    st.markdown("### Q4. Young adults are far less likely to be registered (2026)")
+    st.markdown("### People who registered (2026)")
     ages = pd.DataFrame({"registered": [n["youth_registered"], n["registered_2026"] - n["youth_registered"]],
                          "eligible": [n["youth_adults"], adults - n["youth_adults"]]}, index=["18–29", "30+"])
     ages["rate"] = ages["registered"] / ages["eligible"]
@@ -945,11 +937,9 @@ def findings_page():
                 f"registered at a lower rate than adults overall in {youth_below} of {len(d)} municipalities. "
                 "This is registration only: the IEC does not publish turnout by age.")
 
-    # ------------------------------------------------------------------ C. what goes with low turnout
-    st.markdown("## C. What goes with low turnout")
+    st.markdown("### Correlation: what goes with low registration and low turnout, 2021")
     panel("<b>A link is not proof of a cause.</b> A pattern across municipalities cannot show why individuals do or "
           "do not vote. The honest version of \"what causes low turnout\" is \"what is <b>associated</b> with it\".")
-    st.markdown("### Q5. What goes with low registration and low turnout, 2021")
     x = d.assign(**{"Population density": np.log(d["Population density"])})
     chars = ["Adults with higher education", "Households with piped water", "Households with electricity",
              "Households with refuse removal", "Population density", "Neighbours' turnout 2021"]
@@ -974,9 +964,9 @@ def findings_page():
         "better-serviced municipalities fell more in 2021 only, not before. It points to COVID hitting urban-type "
         "places, not to services driving turnout.\n"
         f"- **Neighbours matter:** turnout is strongly related to neighbours' turnout "
-        f"(**{corr.loc[chars[-1], 'Turnout vs typical 2021']:.2f}**, see Q6).")
+        f"(**{corr.loc[chars[-1], 'Turnout vs typical 2021']:.2f}**, see the next chart).")
 
-    st.markdown("### Q6. Turnout clusters geographically")
+    st.markdown("### Turnout clusters geographically")
     sp = d.dropna(subset=["Neighbours' turnout 2021", "Turnout 2021"])
     rho = sp["Turnout 2021"].corr(sp["Neighbours' turnout 2021"])
     rho_prev = sp["Turnout 2021"].corr(sp["Neighbours' turnout 2016"])
@@ -1000,7 +990,7 @@ def findings_page():
                 "COVID; in rural municipalities turnout is really falling: in 2024 the densest municipalities returned "
                 "to their normal pattern, while the least dense are still below theirs.")
 
-    st.markdown("### Q7. Denser municipalities have lower turnout")
+    st.markdown("### Population density: denser municipalities have lower turnout")
     dd = d.dropna(subset=["Population density", "Turnout vs typical 2021"])
     lx, yv = np.log10(dd["Population density"].to_numpy()), dd["Turnout vs typical 2021"].to_numpy()
     b, a = np.polyfit(lx, yv, 1)
@@ -1030,20 +1020,10 @@ def findings_page():
                 "ballot box. Density stands in for many things at once (urban living, migration, COVID restrictions "
                 "in 2021), so this is a link, not a cause.")
 
-    # ------------------------------------------------------------------ D. what to do
-    st.markdown("## D. What to do")
-    st.markdown("### Q8. Where should effort go before 4 November 2026?")
-    counts = d["Problem group"].value_counts()
-    st.markdown(f"**{counts.get('Both low', 0)} municipalities are below typical on both registration and turnout**: "
-                "they are the first priority, and need registration drives, ID and address help, and voter "
-                "education and mobilisation together. The full ranked list, with the number of registrations and "
-                "extra voters each one needs, is on the **Priority list** page (Menu).")
-
 
 # ================================================================== navigation: Menu (top left)
 nav = st.navigation([
     st.Page(overview, title="Overview", icon=":material/home:", url_path="overview", default=True),
-    st.Page(findings_page, title="Key findings", icon=":material/insights:", url_path="findings"),
     st.Page(map_page, title="Map", icon=":material/map:", url_path="map"),
     st.Page(profile, title="Municipality profile", icon=":material/account_balance:", url_path="profile"),
     st.Page(priority_list, title="Priority list", icon=":material/format_list_numbered:", url_path="priority"),
