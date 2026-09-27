@@ -19,7 +19,17 @@ ROOT = Path(__file__).resolve().parent
 ART = ROOT.parent / "app" / "artifacts"
 
 app = Flask(__name__)
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 60 * 60 * 24          # static files and the map are cached for a day
+app.config["TEMPLATES_AUTO_RELOAD"] = True                      # edits to index.html show without a restart
+
+
+@app.context_processor
+def asset_helper():
+    """asset("css/style.css") -> /static/css/style.css?v=<last change>, so browsers always load the newest file."""
+    def asset(filename):
+        path = ROOT / "static" / filename
+        version = int(path.stat().st_mtime) if path.exists() else 0
+        return f"/static/{filename}?v={version}"
+    return {"asset": asset}
 
 GROUPS = ["Low registration", "Low turnout", "Both low", "Healthy"]
 YEARS = (2011, 2016, 2021)
