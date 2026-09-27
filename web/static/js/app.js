@@ -223,15 +223,14 @@ function buildOverview(body) {
   <div class="grid g2" style="margin-top:18px">
     <div class="card"><h3>The funnel, 2021: out of every 100 adults</h3>
       <div class="chart-box" style="height:200px"><canvas id="ov-funnel"></canvas></div>
-      <div class="caption">About ${Math.round(100 - 100 * reg21)} of every 100 adults were lost before registering, and another 35
+      <div class="caption">About ${Math.round(100 - 100 * reg21)} of every 100 adults were lost before registering, and another
+      ${Math.round(100 * reg21) - Math.round(100 * vote21)}
       after registering. The official turnout figure only shows the second loss.</div></div>
     <div class="card"><h3>Every municipality falls into one of the four groups</h3>
       <div class="groups">${GROUPS.map((g) => `<div class="group">${pill(g)}<b>${n.groups[g]}</b></div>`).join("")}</div>
       <div class="caption">Compared with a typical municipality, using the 2026 roll and ${turnoutLabel().toLowerCase()}.
       Open the <a href="#/map">Map</a> to see where they are, or the <a href="#/profile">profile</a> to look up your own.</div></div>
   </div>`;
-
-  // ${Math.round(100 * reg21 - 100 * vote21)} 
 
   // hero chart: turnout (actual + forecast) or registration
   let heroView = "t";
