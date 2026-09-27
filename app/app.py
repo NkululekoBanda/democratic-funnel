@@ -10,6 +10,7 @@ import json
 from textwrap import dedent
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -109,6 +110,20 @@ st.markdown(f"""
              border-radius: 0 0 12px 12px; }}
   .footer img {{ width: 100%; max-width: 900px; display: block; margin: 0 auto 12px; }}
   .footer .txt {{ text-align: center; color: {INK2}; font-size: .86rem; line-height: 1.55; }}
+  /* Our team page */
+  .team-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-bottom: 30px; }}
+  .member {{ text-align: center; background: var(--surface); border: 1px solid var(--grid); border-radius: 16px;
+             padding: 22px 14px 18px; box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease; }}
+  .member:hover {{ transform: translateY(-5px); box-shadow: 0 10px 24px rgba(16, 24, 40, .14); }}
+  .avatar {{ width: 150px; height: 150px; margin: 0 auto 14px; border-radius: 50%; padding: 5px;
+             background: conic-gradient({DIRISA_ORANGE}, #f6b25e, {DIRISA_ORANGE}); }}
+  .avatar img {{ width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid var(--surface);
+                 display: block; }}
+  .member-name {{ font-size: 1.25rem; font-weight: 800; color: var(--accent); }}
+  .member-role {{ display: inline-block; margin-top: 6px; padding: 3px 12px; border-radius: 999px; font-size: .85rem;
+                  font-weight: 600; color: var(--accent); background: var(--panel); }}
+  @media (max-width: 900px) {{ .team-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
+  @media (max-width: 560px) {{ .team-grid {{ grid-template-columns: 1fr; }} }}
   /* Charts in dark mode: navy and dark grey marks are lifted so they stay visible on the dark background.
      (Plotly writes colours inline, so they are matched by their rgb() value.) */
   html[data-theme="dark"] .js-plotly-plot [style*="stroke: rgb(27, 47, 91)"] {{ stroke: #7f9ad6 !important; }}
@@ -239,7 +254,7 @@ def by_province(df):
 
 
 def chart(fig, height=360):
-    # Text and grid colours come from Streamlit's chart theme, so they follow light / dark mode.
+
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title=None),
@@ -258,10 +273,6 @@ st.markdown(f"""
   <img class="ul" src="{img64('ul_logo.png')}" alt="University of Limpopo">
 </div>""", unsafe_allow_html=True)
 
-# ------------------------------------------------------------------ light / dark mode
-# Streamlit follows the viewer's system setting (both themes are in .streamlit/config.toml). The button saves the
-# other theme in the browser the same way Streamlit's own Settings menu does, and reloads. The script also marks the
-# page html[data-theme] so the custom cards and charts above follow Streamlit's theme.
 PAGE_SLUGS = ["overview", "map", "profile", "priority", "recommendations", "participation", "voter-education", "about"]
 st.html(r"""
 <div class="modebar"><button class="modebtn" id="df-mode" type="button" title="Switch between light and dark mode">
@@ -296,7 +307,7 @@ st.html(r"""
 </script>""" % json.dumps(PAGE_SLUGS), unsafe_allow_javascript=True)
 
 
-# ================================================================== 1. overview
+# ==================================================================overview
 def overview():
     page_header("Overview", "The national picture: where people are lost between being eligible, registering and voting.")
     st.markdown(f"<div style='font-size:1.35rem;font-weight:600;margin:4px 0 14px'>People are lost at two points: "
@@ -353,12 +364,12 @@ def overview():
         st.caption("Turnout = votes cast ÷ registered voters. It fell about 12 points in the 2021 COVID election.")
 
     counts = d["Problem group"].value_counts().reindex(GROUPS, fill_value=0)
-    st.markdown("#### Every municipality has one of four problems")
+    st.markdown("#### Every municipality falls into one of four groups")
     st.markdown(" &nbsp; ".join(f"{pill(g)} <b>{counts[g]}</b>" for g in GROUPS), unsafe_allow_html=True)
     st.caption(f"Compared with a typical municipality, using the 2026 roll and {TURNOUT_LABEL.lower()}. "
                "Open the Map to see where they are, or the Municipality profile to look up your own.")
 
-# ================================================================== 2. map
+# ==================================================================map
 def map_page():
     page_header("Map", "Every municipality by its problem group. Filter by province or group; hover or tap for details.")
     c1, c2 = st.columns([1, 2])
@@ -404,7 +415,7 @@ def map_page():
                      column_config={c: st.column_config.NumberColumn(format="percent")
                                     for c in ["Registration rate 2026", "Turnout 2021", "Predicted turnout 2026"]})
 
-# ================================================================== 3. municipality profile
+# ================================================================== municipality profile
 def profile():
     page_header("Municipality profile", "Look up any municipality: its funnel, its problem, what to send, and its 2026 outlook.")
     labels = (d["Municipality"] + " (" + d["Province"] + ")").tolist()
@@ -493,27 +504,11 @@ def profile():
             fig.update_xaxes(tickvals=[2011, 2016, 2021, 2026], title=None)
             chart(fig, 300)
             if HAS_PRED:
-                st.markdown(f"**Predicted turnout 2026: {pct(p, 1)}** (likely range {pct(lo)} – {pct(hi)}).")
+                st.markdown(f"**Predicted turnout 2026: {pct(p, 1)}** (likely range {pct(lo)} – {pct(hi)}): its 2021 "
+                            f"turnout plus the national change of {(p - row['Turnout 2021']) * 100:+.1f} points that the "
+                            "2024 national election points to — the same change for every municipality.")
             else:
-                st.markdown("The 2026 prediction will appear here once the model has run.")
-
-            factors = []
-            if isinstance(row["Main factor pulling turnout down"], str):
-                factors.append(f"pulling turnout down: **{row['Main factor pulling turnout down']}**")
-            if isinstance(row["Main factor holding turnout up"], str):
-                factors.append(f"holding turnout up: **{row['Main factor holding turnout up']}**")
-            if factors:
-                st.markdown("What the model links with this forecast — " + "; ".join(factors) + ".")
-            effects = pd.Series({c.removeprefix("Effect on turnout: "): row[c] for c in d.columns
-                                 if c.startswith("Effect on turnout: ") and pd.notna(row[c])}).sort_values()
-            if len(effects):
-                fig = go.Figure(go.Bar(x=effects.values * 100, y=effects.index, orientation="h",
-                                       marker_color=[CRIMSON if v < 0 else GREEN for v in effects.values],
-                                       hovertemplate="%{y}: %{x:+.1f} points<extra></extra>"))
-                fig.update_layout(title=dict(text="Why this forecast: points down (−) or up (+) against the national "
-                                                  "change", font=dict(size=15)))
-                fig.add_vline(x=0, line_color=INK2, line_width=1)
-                chart(fig, 90 + 30 * len(effects))
+                st.markdown("The 2026 prediction will appear here once 08_model has run.")
             covid = row.get("After COVID (2024)")
             if isinstance(covid, str):
                 how = ("did relatively better in the 2024 national election than in 2021, so 2021 probably "
@@ -524,8 +519,9 @@ def profile():
                             f"turnout would be about **{pct(row['Predicted turnout 2026 (COVID recovery)'], 1)}** "
                             "(COVID recovery scenario).")
             if str(row["Worse than expected in 2021"]) == "True":
-                st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
-                        "Something local happened that our data cannot see.", icon=":material/search:")
+                st.info("**Fell much more than the country in 2021:** one of the 15 municipalities whose turnout fell "
+                        "furthest below the national change. Something local happened that our data cannot see.",
+                        icon=":material/search:")
             st.caption(NOT_A_CAUSE + " Youth figures are about registration only: the IEC does not publish "
                        "turnout by age.")
 
@@ -533,7 +529,7 @@ def profile():
             st.warning("*More people are registered here than the Census 2022 counted adults. The Census sample is "
                        "small in this municipality, so its registration rate is not reliable.", icon=":material/warning:")
 
-# ================================================================== 4. priority list
+# ================================================================== priority list
 def priority_list():
     page_header("Priority list", "Municipalities ranked by how far they are below a typical municipality, with the gap split into its two parts.")
     st.markdown("#### Where to act before 4 November 2026")
@@ -579,7 +575,7 @@ def priority_list():
                        "democratic_funnel_priority_list.csv", "text/csv", type="primary")
     st.caption(f"{len(p)} municipalities shown. Registration rates above 100% (Census caution) are counted as 100%.")
 
-# ================================================================== 5. about
+# ==================================================================  about
 def about():
     page_header("About", "The problem, how we measured it, how the prediction works, our data sources and the limitations.")
     st.markdown(f"""
@@ -595,11 +591,17 @@ registered; **real participation** = registration rate × turnout. Each municipa
 **typical (median) municipality**, which places it in one of four problem groups.
 
 ### How the prediction works, in plain words
-2026 turnout = 2021 turnout + a **national change**, taken from turnout in the 2024 national election, + an **adjustment** for each municipality.
-The adjustment comes from a statistical model (a hierarchical regression, with municipalities grouped inside
-provinces) that learned how turnout changed between 2011, 2016 and 2021. We tested it by training on
-2011 → 2016 and predicting 2016 → 2021. Most of the change between elections is national, so every prediction
-comes with a **range**, not a single number.
+2026 turnout = 2021 turnout + a **national change**, taken from turnout in the 2024 national election. Every
+municipality gets the same change.
+
+We also built a statistical model (a hierarchical regression, with municipalities grouped inside provinces) to
+predict which municipalities would do better or worse than the national change. We tested it honestly: trained on
+2011 → 2016 and predicting 2016 → 2021, it was **not more accurate** than giving every municipality the same
+national change, and it did not rank municipalities correctly. Most of the change between elections is national,
+and differences between municipalities were hard to predict — so the dashboard uses the national change alone.
+
+Every prediction comes with a **range**, not a single number: the spread of this approach's errors when it was
+tested on 2021 (8 in 10 municipalities fell inside it).
 
 ### Data sources
 | Source | Used for |
@@ -680,8 +682,8 @@ def recommendations_page():
         f"Some questions cannot be answered with the available data. In <b>{int(d['Census caution'].sum())}</b> small "
         "municipalities more people are registered than the Census counted adults.",
         "Population figures come only from Census 2022; youth turnout is not published; 2011 results had to be moved "
-        "onto today's boundaries; the model can predict turnout only within about ±5 points for three in four "
-        "municipalities.",
+        "onto today's boundaries; past elections could not predict which municipalities would do better or worse than "
+        "the national change, so the 2026 forecast is the same national change for everyone, give or take about 5 points.",
         "Publish turnout by age group at municipal level; publish registration by age for past elections; update "
         "population estimates between censuses; combine these numbers with community-level research.",
         "Better data would show whether the gaps found here persist, and why they occur.")
@@ -723,40 +725,17 @@ def recommendations_page():
 
 # ================================================================== Electoral participation
 def participation_page():
-    page_header("Electoral participation", "Turnout trends 2011 → 2016 → 2021 by province and municipality, the 2021 context, and what the data cannot tell you.")
+    page_header("Electoral participation", "Registration and turnout 2011 → 2026, by province and municipality, who "
+                "registers, what goes with low turnout, the 2021 context, and what the data cannot tell you.")
     n = national(d)
     bp = by_province(d)
 
     st.markdown("Trends in municipal election participation, **2011 → 2016 → 2021**, nationally, by province and by "
                 "municipality.")
 
-    # ------------------------------------------------------------------ national + provinces
-    # same chart as 07_eda Q2: one bar per election, provinces sorted by 2021 turnout (highest at the top)
-    st.markdown("### Turnout fell in every province in 2021")
-    order = bp.sort_values("Turnout 2021")
-    fig = go.Figure()
-    for y in (2021, 2016, 2011):                     # drawn bottom-up, so 2011 sits on top within each province
-        fig.add_trace(go.Bar(y=order["Province"], x=order[f"Turnout {y}"], orientation="h", name=str(y),
-                             marker_color=YEAR_COLOURS[y], text=[pct(v, 1) for v in order[f"Turnout {y}"]],
-                             textposition="outside", cliponaxis=False, textfont=dict(size=13),
-                             hovertemplate="%{y} " + str(y) + ": %{x:.1%}<extra></extra>"))
-    fig.update_layout(barmode="group", bargap=0.22, bargroupgap=0.05, legend_traceorder="reversed")
-    fig.update_xaxes(tickformat=".0%", range=[0, 0.8], title="Turnout (votes ÷ registered)")
-    fig.update_yaxes(title=None)
-    chart(fig, 640)
-    st.caption(f"Nationally, turnout was {pct(n['turnout_2011'], 1)} (2011), {pct(n['turnout_2016'], 1)} (2016) and "
-               f"{pct(n['turnout_2021'], 1)} (2021). Provinces are sorted by 2021 turnout, highest at the top.")
-
-    t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
-    t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
-    t = t.sort_values("Change 2016 → 2021")
-    for c in t.columns[1:]:
-        t[c] = (t[c] * 100).round(1)
-    st.dataframe(t, hide_index=True, use_container_width=True, column_config={
-        **{c: st.column_config.NumberColumn(format="%.1f%%") for c in
-           ["Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]},
-        "Change 2016 → 2021": st.column_config.NumberColumn(format="%+.1f points"),
-        "Participation 2021": st.column_config.NumberColumn("Participation 2021 (% of all adults)", format="%.1f%%")})
+    # ------------------------------------------------------------------ the charts of 07_eda
+    eda_charts(n, bp)
+    t = bp.assign(**{"Change 2016 → 2021": ((bp["Turnout 2021"] - bp["Turnout 2016"]) * 100).round(1)})
 
     # ------------------------------------------------------------------ 2021 context
     st.markdown("### The 2021 election in context")
@@ -768,18 +747,6 @@ def participation_page():
              "<b>Context.</b> The 2021 election was held under COVID-19 restrictions on gatherings and campaigning. "
              "A drop across every province is consistent with a national cause, but this data cannot separate the "
              "effect of the pandemic from other reasons turnout may have changed.")
-
-    st.markdown("### How much municipalities differ")
-    fig = go.Figure()
-    for y, colour in [(2016, "#b7c3dc"), (2021, AMBER)]:
-        fig.add_trace(go.Histogram(x=d[f"Turnout {y}"], name=str(y), marker_color=colour, opacity=0.85, nbinsx=30,
-                                   hovertemplate=f"{y}: " + "%{x:.0%}: %{y} municipalities<extra></extra>"))
-    fig.update_layout(barmode="overlay")
-    fig.update_xaxes(tickformat=".0%", title="Turnout")
-    fig.update_yaxes(title="Municipalities")
-    chart(fig, 320)
-    st.caption(f"In 2021, municipal turnout ranged from {pct(d['Turnout 2021'].min())} to {pct(d['Turnout 2021'].max())}. "
-               "The whole distribution moved lower than in 2016.")
 
     st.markdown("### Not included")
     panel("<b>2006 results, the 2024 national election and municipal by-elections are not part of this analysis.</b> "
@@ -858,6 +825,224 @@ def voter_education_page():
              f"information, visit <a href='{IEC}' target='_blank'>elections.org.za</a>.")
 
 
+# ================================================================== the charts of 07_eda (Electoral participation)
+def province_chart(bp):
+    """07_eda Q2: one bar per election, provinces sorted by 2021 turnout (highest at the top)."""
+    order = bp.sort_values("Turnout 2021")
+    fig = go.Figure()
+    for y in (2021, 2016, 2011):                     # drawn bottom-up, so 2011 sits on top within each province
+        fig.add_trace(go.Bar(y=order["Province"], x=order[f"Turnout {y}"], orientation="h", name=str(y),
+                             marker_color=YEAR_COLOURS[y], text=[pct(v, 1) for v in order[f"Turnout {y}"]],
+                             textposition="outside", cliponaxis=False, textfont=dict(size=13),
+                             hovertemplate="%{y} " + str(y) + ": %{x:.1%}<extra></extra>"))
+    fig.update_layout(barmode="group", bargap=0.22, bargroupgap=0.05, legend_traceorder="reversed")
+    fig.update_xaxes(tickformat=".0%", range=[0, 0.8], title="Turnout rate")
+    fig.update_yaxes(title="Province")
+    chart(fig, 640)
+
+
+def eda_charts(n, bp):
+    """The charts of 07_eda, in the order the team asked for on the Electoral participation page."""
+    adults = d["Adults who may vote"].sum()
+
+    st.markdown("### Turnout and registration")
+    yrs = [2011, 2016, 2021, 2026]
+    reg = [d[f"Registered {y}"].sum() / adults for y in yrs]
+    tur = [n[f"turnout_{y}"] for y in yrs[:3]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=yrs, y=reg, name="Registration rate (% of adults who may vote)", mode="lines+markers+text",
+                             line=dict(color=BLUE, width=3), marker=dict(size=10), text=[pct(v, 1) for v in reg],
+                             textposition="top center", textfont=dict(color=BLUE, size=14),
+                             hovertemplate="Registration %{x}: %{y:.1%}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=yrs[:3], y=tur, name="Turnout (% of registered voters)", mode="lines+markers+text",
+                             line=dict(color=AMBER, width=3), marker=dict(size=10, symbol="square"),
+                             text=[pct(v, 1) for v in tur], textposition="bottom center",
+                             textfont=dict(color=AMBER, size=14), hovertemplate="Turnout %{x}: %{y:.1%}<extra></extra>"))
+    fig.add_annotation(x=2026, y=0.30, text="4 Nov 2026:<br>not held yet", showarrow=False, bordercolor=AMBER,
+                       borderpad=6, font=dict(color=AMBER, size=13))
+    fig.update_yaxes(tickformat=".0%", range=[0, 1], title="Percentage")
+    fig.update_xaxes(tickvals=yrs, title="Local government election year")
+    chart(fig, 400)
+    st.caption("All registration rates use the 2022 Census, so earlier years are understated.")
+    st.markdown(f"More adults are on the roll than ever: the registration rate rose from **{pct(reg[0])}** (2011) to "
+                f"**{pct(reg[-1])}** (2026). But turnout **fell from {pct(tur[1])} to {pct(tur[2])} in 2021**, the "
+                "COVID election. The problem is less getting people registered and more getting registered voters "
+                "to the polls.")
+
+    st.markdown("### How does turnout differ between provinces?")
+    province_chart(bp)
+    fall = (bp["Turnout 2021"] - bp["Turnout 2016"]) * 100
+    st.markdown(f"Turnout fell in **every province** in 2021, by about **{-fall.max():.0f} to {-fall.min():.0f} points**. "
+                f"**{bp.loc[bp['Turnout 2021'].idxmax(), 'Province']}** had the highest turnout in 2021 "
+                f"({pct(bp['Turnout 2021'].max())}); the lowest was **{bp.loc[bp['Turnout 2021'].idxmin(), 'Province']}** "
+                f"({pct(bp['Turnout 2021'].min(), 1)}).")
+    t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
+    t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
+    t = t.sort_values("Change 2016 → 2021")
+    for c in t.columns[1:]:
+        t[c] = (t[c] * 100).round(1)
+    st.dataframe(t, hide_index=True, use_container_width=True, column_config={
+        **{c: st.column_config.NumberColumn(format="%.1f%%") for c in
+           ["Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]},
+        "Change 2016 → 2021": st.column_config.NumberColumn(format="%+.1f points"),
+        "Participation 2021": st.column_config.NumberColumn("Participation 2021 (% of all adults)", format="%.1f%%")})
+
+    st.markdown("### The top 10 municipalities with the lowest turnout, 2011–2021")
+    tw = d.set_index("Municipality")[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021"]].copy()
+    tw["Average"] = tw[["Turnout 2011", "Turnout 2016", "Turnout 2021"]].mean(axis=1)
+    low = tw.nsmallest(10, "Average").iloc[::-1]
+    labels = [f"{m} ({p})" for m, p in zip(low.index, low["Province"])]
+    fig = go.Figure()
+    for y in (2021, 2016, 2011):
+        fig.add_trace(go.Bar(y=labels, x=low[f"Turnout {y}"], orientation="h", name=str(y),
+                             marker_color=YEAR_COLOURS[y], text=[pct(v, 1) for v in low[f"Turnout {y}"]],
+                             textposition="outside", cliponaxis=False, textfont=dict(size=13),
+                             hovertemplate="%{y} " + str(y) + ": %{x:.1%}<extra></extra>"))
+    fig.update_layout(barmode="group", bargap=0.22, bargroupgap=0.05, legend_traceorder="reversed")
+    fig.update_xaxes(tickformat=".0%", range=[0, 0.62], title="Turnout rate")
+    fig.update_yaxes(title="Municipality")
+    chart(fig, 700)
+    st.caption("Ranked by average turnout over the 2011, 2016 and 2021 elections. 2011 turnout for municipalities "
+               "created or re-drawn in 2016 is an estimate (results moved onto today's boundaries).")
+    rose = low[low["Turnout 2021"] > low["Turnout 2016"]].index.tolist()
+    note = ""
+    if rose:
+        note = f" Turnout **rose** in 2021 in {', '.join(rose)}"
+        if rose == ["Collins Chabane"]:
+            note += (": it was created in 2016, so its 2011 figure is an estimate, and it is in this list because of "
+                     "its low 2016 turnout")
+        note += "."
+    st.markdown(f"**{low.index[-1]} ({low['Province'].iloc[-1]})** has the lowest average turnout "
+                f"({pct(low['Average'].iloc[-1], 1)})." + note +
+                " Low turnout is a share of *registered* voters: a municipality with low turnout may still have a "
+                "full roll, and the other way round.")
+
+    st.markdown("### People who registered (2026)")
+    ages = pd.DataFrame({"registered": [n["youth_registered"], n["registered_2026"] - n["youth_registered"]],
+                         "eligible": [n["youth_adults"], adults - n["youth_adults"]]}, index=["18–29", "30+"])
+    ages["rate"] = ages["registered"] / ages["eligible"]
+    fig = go.Figure(go.Bar(y=ages.index, x=ages["rate"], orientation="h", marker_color=[BLUE, NAVY],
+                           text=[f"{r:.1%}  ({a / 1e6:.1f}m of {b / 1e6:.1f}m)" for r, a, b in
+                                 zip(ages["rate"], ages["registered"], ages["eligible"])],
+                           textposition="outside", cliponaxis=False, textfont=dict(size=14),
+                           hovertemplate="%{y}: %{x:.1%}<extra></extra>"))
+    fig.update_yaxes(autorange="reversed", title="Age")
+    fig.update_xaxes(tickformat=".0%", range=[0, 1.15], title="Registration rate, 2026")
+    chart(fig, 250)
+    youth_below = int((d["Youth registration rate"] < d["Registration rate 2026"]).sum())
+    st.markdown(f"**Young adults (18–29)** have by far the lowest participation: **{pct(ages['rate'].iloc[0])}** are "
+                f"registered, against **{pct(ages['rate'].iloc[1])}** of adults aged 30 and older, and they are "
+                f"registered at a lower rate than adults overall in {youth_below} of {len(d)} municipalities. "
+                "This is registration only: the IEC does not publish turnout by age.")
+
+    st.markdown("### Correlation: what goes with low registration and low turnout, 2021")
+    panel("<b>A link is not proof of a cause.</b> A pattern across municipalities cannot show why individuals do or "
+          "do not vote. The honest version of \"what causes low turnout\" is \"what is <b>associated</b> with it\".")
+    x = d.assign(**{"Population density": np.log(d["Population density"])})
+    chars = ["Adults with higher education", "Households with piped water", "Households with electricity",
+             "Households with refuse removal", "Population density", "Neighbours' turnout 2021"]
+    corr = x[["Registration vs typical 2021", "Turnout vs typical 2021"] + chars].corr().loc[
+        chars, ["Registration vs typical 2021", "Turnout vs typical 2021"]]
+    fig = go.Figure(go.Heatmap(z=corr.values, x=["Registration vs typical", "Turnout vs typical"],
+                               y=[c.replace(" 2021", "") for c in chars], zmin=-1, zmax=1,
+                               colorscale=[[0, "#2166ac"], [0.5, "#f7f7f7"], [1, "#b2182b"]],
+                               texttemplate="%{z:.2f}", textfont=dict(size=16, color="#0b0b0b"),
+                               colorbar=dict(title="correlation"),
+                               hovertemplate="%{y} and %{x}: %{z:.2f}<extra></extra>"))
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(side="top")
+    chart(fig, 430)
+    st.markdown(
+        f"- **Registration and turnout are only loosely related** (correlation "
+        f"**{d['Registration vs typical 2021'].corr(d['Turnout vs typical 2021']):.2f}**): the two leaks are largely "
+        "different problems.\n"
+        f"- **Density matters most:** denser municipalities had lower turnout in 2021 "
+        f"(**{corr.loc['Population density', 'Turnout vs typical 2021']:.2f}**).\n"
+        "- **Services and education:** their simple links with turnout in 2021 are weak. Tested properly (08_model), "
+        "better-serviced municipalities fell more in 2021 only, not before. It points to COVID hitting urban-type "
+        "places, not to services driving turnout.\n"
+        f"- **Neighbours matter:** turnout is strongly related to neighbours' turnout "
+        f"(**{corr.loc[chars[-1], 'Turnout vs typical 2021']:.2f}**, see the next chart).")
+
+    st.markdown("### Turnout clusters geographically")
+    sp = d.dropna(subset=["Neighbours' turnout 2021", "Turnout 2021"])
+    rho = sp["Turnout 2021"].corr(sp["Neighbours' turnout 2021"])
+    rho_prev = sp["Turnout 2021"].corr(sp["Neighbours' turnout 2016"])
+    b, a = np.polyfit(sp["Neighbours' turnout 2021"], sp["Turnout 2021"], 1)
+    xs = np.linspace(sp["Neighbours' turnout 2021"].min(), sp["Neighbours' turnout 2021"].max(), 50)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=sp["Neighbours' turnout 2021"], y=sp["Turnout 2021"], mode="markers",
+                             marker=dict(color=AMBER, size=9, line=dict(color="white", width=0.8)),
+                             customdata=sp[["Municipality"]],
+                             hovertemplate="%{customdata[0]}<br>own %{y:.1%}, neighbours %{x:.1%}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=xs, y=a + b * xs, mode="lines", line=dict(color=NAVY, width=3), hoverinfo="skip"))
+    fig.add_annotation(x=0.02, y=0.98, xref="paper", yref="paper", showarrow=False, xanchor="left",
+                       text=f"<b>correlation = {rho:.2f}</b>", font=dict(size=15, color=NAVY))
+    fig.update_layout(showlegend=False)
+    fig.update_xaxes(tickformat=".0%", title="Neighbours' average turnout, 2021")
+    fig.update_yaxes(tickformat=".0%", title="Own turnout, 2021")
+    chart(fig, 430)
+    st.markdown(f"**Yes.** A municipality's turnout is strongly related to its neighbours' turnout in the same election "
+                f"(correlation **{rho:.2f}**), and still clearly related to their turnout at the previous election "
+                f"(**{rho_prev:.2f}**). Low turnout is regional. **Was 2021 just COVID?** In cities the 2021 drop was "
+                "COVID; in rural municipalities turnout is really falling: in 2024 the densest municipalities returned "
+                "to their normal pattern, while the least dense are still below theirs.")
+
+    st.markdown("### Population density: denser municipalities have lower turnout")
+    dd = d.dropna(subset=["Population density", "Turnout vs typical 2021"])
+    lx, yv = np.log10(dd["Population density"].to_numpy()), dd["Turnout vs typical 2021"].to_numpy()
+    b, a = np.polyfit(lx, yv, 1)
+    grid = np.linspace(lx.min(), lx.max(), 60)
+    resid = yv - (a + b * lx)
+    se = np.sqrt((resid ** 2).sum() / (len(lx) - 2)
+                 * (1 / len(lx) + (grid - lx.mean()) ** 2 / ((lx - lx.mean()) ** 2).sum()))
+    fit = a + b * grid
+    r7 = np.corrcoef(lx, yv)[0, 1]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=np.r_[10 ** grid, 10 ** grid[::-1]], y=np.r_[fit + 1.96 * se, (fit - 1.96 * se)[::-1]],
+                             fill="toself", fillcolor="rgba(42, 120, 214, 0.18)", line=dict(width=0), hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=dd["Population density"], y=yv, mode="markers",
+                             marker=dict(color=AMBER, size=9, opacity=0.8, line=dict(color="white", width=0.6)),
+                             customdata=dd[["Municipality"]],
+                             hovertemplate="%{customdata[0]}<br>%{x:,.0f} people per km²: %{y:+.0%}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=10 ** grid, y=fit, mode="lines", line=dict(color=BLUE, width=3), hoverinfo="skip"))
+    fig.add_annotation(x=0.02, y=0.98, xref="paper", yref="paper", showarrow=False, xanchor="left",
+                       text=f"<b>correlation = {r7:.2f}</b>", font=dict(size=15, color=NAVY))
+    fig.update_layout(showlegend=False)
+    fig.update_xaxes(type="log", tickvals=[1, 10, 100, 1000], ticktext=["1", "10", "100", "1,000"],
+                     title="People per km² (log scale)")
+    fig.update_yaxes(tickformat=".0%", title="Turnout vs typical municipality, 2021")
+    chart(fig, 430)
+    st.markdown(f"Denser municipalities had lower turnout than a typical municipality in 2021 (correlation "
+                f"**{r7:.2f}**): metros and large urban municipalities lost more voters between registration and the "
+                "ballot box. Density stands in for many things at once (urban living, migration, COVID restrictions "
+                "in 2021), so this is a link, not a cause.")
+
+
+# ================================================================== Our team
+
+TEAM = ["Eshley", "Morongwa", "Mthokozisi", "Nkululeko", "Khwathisedzo", "Thato"]
+ROLE_OF = {}                                   # e.g. {"Thato": ["A"], "Nkululeko": ["F"]}
+ROLE_TITLE = {"A": "Election results", "B": "Voter registration", "C": "National elections & by-elections",
+              "D": "Census data", "E": "Geography", "F": "Master table, model & dashboard"}
+
+
+def photo64(name):
+    path = Path(__file__).resolve().parent / "static" / "team" / f"{name.lower()}.jpg"
+    return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode() if path.exists() else ""
+
+
+def team_page():
+    page_header("Our team", "Team UL, University of Limpopo · DIRISA Student Datathon Challenge 2026")
+    cards = []
+    for name in TEAM:
+        roles = ROLE_OF.get(name, [])
+        chip = " · ".join(ROLE_TITLE[r] for r in roles) if roles else "Team UL"
+        cards.append(f"<div class='member'><div class='avatar'><img src='{photo64(name)}' alt='{name}'></div>"
+                     f"<div class='member-name'>{name}</div><div class='member-role'>{chip}</div></div>")
+    st.markdown("<div class='team-grid'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
+
+
 # ================================================================== navigation: Menu (top left)
 nav = st.navigation([
     st.Page(overview, title="Overview", icon=":material/home:", url_path="overview", default=True),
@@ -868,6 +1053,7 @@ nav = st.navigation([
     st.Page(participation_page, title="Electoral participation", icon=":material/bar_chart:", url_path="participation"),
     st.Page(voter_education_page, title="Voter education", icon=":material/how_to_vote:", url_path="voter-education"),
     st.Page(about, title="About", icon=":material/info:", url_path="about"),
+    st.Page(team_page, title="Our team", icon=":material/groups:", url_path="team"),
 ], position="sidebar")
 st.sidebar.caption("The Democratic Funnel · Team UL · DIRISA Student Datathon Challenge 2026")
 nav.run()

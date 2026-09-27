@@ -1,0 +1,5 @@
+# Only what the Flask dashboard needs (Render installs this file)
+flask>=3.0
+gunicorn>=22.0
+numpy>=1.26
+pandas>=2.1
