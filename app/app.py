@@ -752,18 +752,6 @@ def participation_page():
              "A drop across every province is consistent with a national cause, but this data cannot separate the "
              "effect of the pandemic from other reasons turnout may have changed.")
 
-    st.markdown("### How much municipalities differ")
-    fig = go.Figure()
-    for y, colour in [(2016, LIGHT_BLUE), (2021, AMBER)]:
-        fig.add_trace(go.Histogram(x=d[f"Turnout {y}"], name=str(y), marker_color=colour, opacity=0.85, nbinsx=30,
-                                   hovertemplate=f"{y}: " + "%{x:.0%}: %{y} municipalities<extra></extra>"))
-    fig.update_layout(barmode="overlay")
-    fig.update_xaxes(tickformat=".0%", title="Turnout")
-    fig.update_yaxes(title="Municipalities")
-    chart(fig, 320)
-    st.caption(f"In 2021, municipal turnout ranged from {pct(d['Turnout 2021'].min())} to {pct(d['Turnout 2021'].max())}. "
-               "The whole distribution moved lower than in 2016.")
-
     st.markdown("### Not included")
     panel("<b>2006 results, the 2024 national election and municipal by-elections are not part of this analysis.</b> "
              "Our comparisons use the three most recent municipal elections on today's boundaries. National and "
