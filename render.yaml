@@ -1,5 +1,5 @@
 # Render Blueprint for the dashboard (render.com -> New -> Blueprint -> pick this repo).
-# The app reads only app/artifacts/ (committed), so no Drive access or secrets are needed.
+# The Flask app (web/) reads only app/artifacts/ (committed), so no Drive access or secrets are needed.
 # Switch branch to main once the dashboard pull requests are merged.
 services:
   - type: web
@@ -7,9 +7,9 @@ services:
     runtime: python
     plan: free
     branch: nkululeko
-    buildCommand: pip install -r app/requirements.txt
-    startCommand: streamlit run app/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
-    healthCheckPath: /_stcore/health
+    buildCommand: pip install -r web/requirements.txt
+    startCommand: gunicorn --chdir web app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7

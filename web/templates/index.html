@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Democratic Funnel</title>
+<meta name="description" content="Where local democracy leaks before South Africa's local government elections on 4 November 2026.">
+<script>
+  // pick the theme before anything is drawn, so the page never flashes the wrong colours
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("df-theme"); } catch (e) {}
+    var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" href="{{ url_for('static', filename='fonts/MaterialSymbolsRounded.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='img/dirisa_logo.png') }}">
+</head>
+<body>
+<div class="app">
+
+  <aside class="rail" aria-label="Menu">
+    <a class="rail-logo" href="#/overview" title="The Democratic Funnel"><span class="msr">filter_alt</span></a>
+    <nav class="rail-nav">
+      <a href="#/overview" data-page="overview"><span class="msr">space_dashboard</span><span class="lbl">Overview</span></a>
+      <a href="#/map" data-page="map"><span class="msr">map</span><span class="lbl">Map</span></a>
+      <a href="#/profile" data-page="profile"><span class="msr">location_city</span><span class="lbl">Profile</span></a>
+      <a href="#/priority" data-page="priority"><span class="msr">format_list_numbered</span><span class="lbl">Priority</span></a>
+      <a href="#/participation" data-page="participation"><span class="msr">bar_chart</span><span class="lbl">Participation</span></a>
+      <a href="#/recommendations" data-page="recommendations"><span class="msr">lightbulb</span><span class="lbl">Actions</span></a>
+      <a href="#/voter-education" data-page="voter-education"><span class="msr">how_to_vote</span><span class="lbl">Vote</span></a>
+      <a href="#/about" data-page="about"><span class="msr">info</span><span class="lbl">About</span></a>
+      <a href="#/team" data-page="team"><span class="msr">groups</span><span class="lbl">Team</span></a>
+    </nav>
+    <button class="rail-theme" id="theme-btn" type="button" title="Switch light / dark mode">
+      <span class="msr to-dark">dark_mode</span><span class="msr to-light">light_mode</span>
+    </button>
+  </aside>
+
+  <main class="panel">
+    <header class="top">
+      <div class="brand">
+        <img src="{{ url_for('static', filename='img/dirisa_logo.png') }}" alt="NICIS DIRISA" class="brand-dirisa">
+        <div class="brand-name">The Democratic Funnel
+          <span>Where local democracy leaks before 4 November 2026</span></div>
+      </div>
+      <div class="top-tools">
+        <label class="search" title="Find a municipality">
+          <span class="msr">search</span>
+          <input id="search" list="muni-list" placeholder="Find a municipality" autocomplete="off">
+        </label>
+        <datalist id="muni-list"></datalist>
+        <a class="team-chip" href="#/team" title="Our team">
+          <span class="chip-faces">
+            <img src="{{ url_for('static', filename='img/team/nkululeko.jpg') }}" alt="">
+            <img src="{{ url_for('static', filename='img/team/eshley.jpg') }}" alt="">
+            <img src="{{ url_for('static', filename='img/team/thato.jpg') }}" alt="">
+          </span>
+          <span>Team UL</span>
+        </a>
+        <img src="{{ url_for('static', filename='img/ul_logo.png') }}" alt="University of Limpopo" class="brand-ul">
+      </div>
+    </header>
+
+    <div id="loading" class="loading"><div class="spinner"></div><div>Loading the data…</div></div>
+    <div id="pages"></div>
+
+    <footer class="footer">
+      <img src="{{ url_for('static', filename='img/partners_footer.png') }}"
+           alt="Department of Science, Technology and Innovation, CSIR, NICIS DIRISA">
+      <p><b>The Democratic Funnel</b> · Team UL, University of Limpopo · DIRISA Student Datathon Challenge 2026<br>
+      A student project. Not an official publication of DIRISA, NICIS, the CSIR, the Department of Science, Technology
+      and Innovation or the Electoral Commission.<br>
+      Data: Electoral Commission of South Africa (IEC) · Statistics South Africa, Census 2022 · Municipal Demarcation Board</p>
+    </footer>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>window.STATIC = "{{ url_for('static', filename='') }}";</script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
