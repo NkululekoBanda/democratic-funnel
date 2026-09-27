@@ -1,8 +1,17 @@
 # Navy accent (= "national" in the house style). DIRISA orange is used only in the header stripe,
 # because it is too close to the amber that means "turnout" in the charts.
-[theme]
-base = "light"
+# Two themes: Streamlit follows the viewer's system setting, and the Light/Dark button in the header
+# (app.py) overrides it. No [theme] base here, otherwise every viewer is forced into light mode.
+[theme.light]
 primaryColor = "#1b2f5b"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f3f5fa"
 textColor = "#0b0b0b"
+linkColor = "#1f5fb8"
+
+[theme.dark]
+primaryColor = "#5d78b8"
+backgroundColor = "#0f1420"
+secondaryBackgroundColor = "#1b2435"
+textColor = "#e9ecf2"
+linkColor = "#8fb4ff"

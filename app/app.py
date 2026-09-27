@@ -15,11 +15,13 @@ import plotly.graph_objects as go
 import streamlit as st
 
 ART = Path(__file__).resolve().parent / "artifacts"
-st.set_page_config(page_title="The Democratic Funnel", page_icon="🗳️", layout="wide",
+st.set_page_config(page_title="The Democratic Funnel", page_icon=":material/how_to_vote:", layout="wide",
                    initial_sidebar_state="collapsed")
 
 # ------------------------------------------------------------------ house style (same as 07_eda)
 BLUE, AMBER, CRIMSON, GREEN, NAVY = "#2a78d6", "#eda100", "#a3143a", "#7bc586", "#1b2f5b"
+LIGHT_BLUE, LIGHT_AMBER = "#9ec5f0", "#f6d58a"          # tints for older elections (no grey: team rule)
+YEAR_COLOURS = {2011: LIGHT_BLUE, 2016: LIGHT_AMBER, 2021: AMBER}
 DIRISA_ORANGE = "#ee7900"
 INK, INK2, GRID = "#0b0b0b", "#4a4a47", "#e4e3de"
 GROUPS = ["Low registration", "Low turnout", "Both low", "Healthy"]
@@ -34,54 +36,87 @@ NOT_A_CAUSE = "A link is not proof of a cause: patterns across municipalities ca
 
 st.markdown(f"""
 <style>
+  /* Colours come from variables: light by default, dark when the page is in dark mode (html[data-theme=dark],
+     set by the script in the header). */
+  :root {{ --ink: {INK}; --ink2: {INK2}; --grid: {GRID}; --surface: #ffffff; --panel: #f3f5fa; --warn: #fbf1f3;
+           --accent: {NAVY}; --blue-text: {BLUE}; --amber-text: #b27800; --shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+  html[data-theme="dark"] {{ --ink: #e9ecf2; --ink2: #aab2c0; --grid: #2b3446; --surface: #161c28; --panel: #1b2435;
+           --warn: #2b1a21; --accent: #a9bdf0; --blue-text: #6ea8ff; --amber-text: #f2b53a;
+           --shadow: 0 1px 3px rgba(0, 0, 0, .35); }}
   html, body, [class*="css"] {{ font-size: 17px; }}
   .block-container {{ padding-top: 3.2rem; max-width: 1200px; }}
-  .card {{ border: 1px solid {GRID}; border-radius: 10px; padding: 16px 18px; height: 100%; background: #fff; }}
-  .card .big {{ font-size: 2.3rem; font-weight: 700; line-height: 1.1; color: {INK}; }}
-  .card .small {{ font-size: 0.98rem; color: {INK2}; margin-top: 6px; line-height: 1.35; }}
+  .msr {{ font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; line-height: 1;
+          letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+          font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; }}
+  .card {{ border: 1px solid var(--grid); border-radius: 10px; padding: 16px 18px; height: 100%; background: var(--surface);
+           box-shadow: var(--shadow); }}
+  .card .big {{ font-size: 2.3rem; font-weight: 700; line-height: 1.1; color: var(--ink); }}
+  .card .small {{ font-size: 0.98rem; color: var(--ink2); margin-top: 6px; line-height: 1.35; }}
   .pill {{ display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.95rem; }}
-  .box {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; border-radius: 6px;
+  .box {{ border-left: 5px solid var(--accent); background: var(--panel); padding: 12px 16px; border-radius: 6px;
           margin: 8px 0 14px; line-height: 1.5; }}
   [data-testid="stExpandSidebarButton"] svg, [data-testid="stExpandSidebarButton"] span,
   [data-testid="stSidebarCollapsedControl"] button svg,
   [data-testid="stSidebarCollapsedControl"] button span {{ display: none !important; }}
   [data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"] button {{
-    width: auto !important; min-width: 90px; padding: 4px 10px !important; border-radius: 8px;
-    border: 1px solid {GRID} !important; background: #fff !important; }}
+    width: auto !important; min-width: 90px; padding: 4px 10px !important; border-radius: 8px; gap: 6px;
+    border: 1px solid var(--grid) !important; background: var(--surface) !important; }}
+  [data-testid="stExpandSidebarButton"]::before, [data-testid="stSidebarCollapsedControl"] button::before {{
+    content: "menu"; font-family: "Material Symbols Rounded"; font-feature-settings: "liga"; font-size: 1.35rem;
+    color: var(--accent); }}
   [data-testid="stExpandSidebarButton"]::after, [data-testid="stSidebarCollapsedControl"] button::after {{
-    content: "☰  Menu"; font-size: 1.05rem; font-weight: 700; color: {NAVY}; white-space: pre; }}
-  .card {{ box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
-  .topbar {{ display: flex; align-items: center; gap: 18px; background: #fff; border: 1px solid {GRID};
+    content: "Menu"; font-size: 1.05rem; font-weight: 700; color: var(--accent); }}
+  .topbar {{ display: flex; align-items: center; gap: 18px; background: #fff; border: 1px solid var(--grid);
              border-bottom: 4px solid {DIRISA_ORANGE}; border-radius: 12px; padding: 12px 20px; margin-bottom: 18px;
-             box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
+             box-shadow: var(--shadow); }}
   .topbar img.dirisa {{ height: 54px; }}
   .topbar img.ul {{ height: 62px; margin-left: auto; }}
   .topbar .name {{ border-left: 1px solid {GRID}; padding-left: 18px; }}
   .topbar .name .t {{ font-size: 1.55rem; font-weight: 800; color: {NAVY}; line-height: 1.15; }}
   .topbar .name .s {{ font-size: .95rem; color: {INK2}; }}
+  .modebar {{ display: flex; justify-content: flex-end; margin: -8px 0 10px; }}
+  .modebtn {{ display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font: inherit; font-size: .92rem;
+              font-weight: 600; color: var(--accent); background: var(--surface); border: 1px solid var(--grid);
+              border-radius: 999px; padding: 5px 14px 5px 10px; }}
+  .modebtn:hover {{ border-color: var(--accent); }}
+  .modebtn .msr {{ font-size: 1.2rem; }}
+  .modebtn .to-light {{ display: none; }}
+  html[data-theme="dark"] .modebtn .to-dark {{ display: none; }}
+  html[data-theme="dark"] .modebtn .to-light {{ display: inline-flex; align-items: center; gap: 6px; }}
+  .modebtn .to-dark {{ display: inline-flex; align-items: center; gap: 6px; }}
   .pagehead {{ margin: 2px 0 14px; }}
-  .pagehead h2 {{ color: {NAVY}; font-size: 1.7rem; font-weight: 800; margin: 0; padding: 0; }}
-  .pagehead p {{ color: {INK2}; margin: 4px 0 0; font-size: 1.02rem; }}
-  .kpi {{ border: 1px solid {GRID}; border-radius: 12px; padding: 14px 16px; height: 100%; background: #fff;
-          box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
-  .kpi .label {{ font-size: .92rem; font-weight: 700; color: {INK}; }}
+  .pagehead h2 {{ color: var(--accent); font-size: 1.7rem; font-weight: 800; margin: 0; padding: 0; }}
+  .pagehead p {{ color: var(--ink2); margin: 4px 0 0; font-size: 1.02rem; }}
+  .kpi {{ border: 1px solid var(--grid); border-radius: 12px; padding: 14px 16px; height: 100%; background: var(--surface);
+          box-shadow: var(--shadow); }}
+  .kpi .label {{ font-size: .92rem; font-weight: 700; color: var(--ink); }}
   .kpi .value {{ font-size: 2rem; font-weight: 800; line-height: 1.15; margin: 4px 0; }}
-  .kpi .note {{ font-size: .88rem; color: {INK2}; line-height: 1.35; }}
-  .panel {{ border-left: 5px solid {NAVY}; background: #f3f5fa; padding: 12px 16px; 
+  .kpi .note {{ font-size: .88rem; color: var(--ink2); line-height: 1.35; }}
+  .panel {{ border-left: 5px solid var(--accent); background: var(--panel); padding: 12px 16px;
             margin: 6px 0 14px; line-height: 1.5; }}
-  .panel.warn {{ border-left-color: {CRIMSON}; background: #fbf1f3; }}
-  .rec {{ border: 1px solid {GRID}; border-radius: 12px; padding: 4px 18px 10px; margin-bottom: 16px; background: #fff;
-          box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
-  .rec h3 {{ margin-bottom: 4px; color: {NAVY}; }}
-  .rec .row {{ display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid {GRID}; }}
-  .rec .k {{ min-width: 190px; font-weight: 700; color: {NAVY}; }}
-  .info {{ border: 1px solid {GRID}; border-radius: 12px; padding: 16px 18px; height: 100%; background: #fff;
-           box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }}
-  .info .icon {{ font-size: 1.9rem; }}
-  .info h4 {{ margin: 6px 0; color: {NAVY}; }}
-  .footer {{ margin-top: 42px; border-top: 4px solid {DIRISA_ORANGE}; background: #fff; padding: 18px 8px 8px; }}
+  .panel.warn {{ border-left-color: {CRIMSON}; background: var(--warn); }}
+  .rec {{ border: 1px solid var(--grid); border-radius: 12px; padding: 4px 18px 10px; margin-bottom: 16px;
+          background: var(--surface); box-shadow: var(--shadow); }}
+  .rec h3 {{ margin-bottom: 4px; color: var(--accent); }}
+  .rec .row {{ display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid var(--grid); }}
+  .rec .k {{ min-width: 190px; font-weight: 700; color: var(--accent); }}
+  .info {{ border: 1px solid var(--grid); border-radius: 12px; padding: 16px 18px; height: 100%; background: var(--surface);
+           box-shadow: var(--shadow); }}
+  .info .icon {{ font-size: 1.9rem; color: var(--accent); }}
+  .info h4 {{ margin: 6px 0; color: var(--accent); }}
+  .hl-blue {{ color: var(--blue-text); }} .hl-amber {{ color: var(--amber-text); }}
+  .footer {{ margin-top: 42px; border-top: 4px solid {DIRISA_ORANGE}; background: #fff; padding: 18px 8px 8px;
+             border-radius: 0 0 12px 12px; }}
   .footer img {{ width: 100%; max-width: 900px; display: block; margin: 0 auto 12px; }}
   .footer .txt {{ text-align: center; color: {INK2}; font-size: .86rem; line-height: 1.55; }}
+  /* Charts in dark mode: navy and dark grey marks are lifted so they stay visible on the dark background.
+     (Plotly writes colours inline, so they are matched by their rgb() value.) */
+  html[data-theme="dark"] .js-plotly-plot [style*="stroke: rgb(27, 47, 91)"] {{ stroke: #7f9ad6 !important; }}
+  html[data-theme="dark"] .js-plotly-plot [style*="fill: rgb(27, 47, 91)"] {{ fill: #5d78b8 !important; }}
+  html[data-theme="dark"] .js-plotly-plot [style*="stroke: rgb(74, 74, 71)"] {{ stroke: #aab2c0 !important; }}
+  html[data-theme="dark"] .js-plotly-plot [style*="fill: rgb(74, 74, 71)"] {{ fill: #aab2c0 !important; }}
+  html[data-theme="dark"] .js-plotly-plot [style*="stroke: rgb(183, 195, 220)"] {{ stroke: #4c5874 !important; }}
+  html[data-theme="dark"] .js-plotly-plot [style*="fill: rgb(183, 195, 220)"] {{ fill: #4c5874 !important; }}
   @media (max-width: 640px) {{
     .card .big {{ font-size: 1.8rem; }}
     .topbar {{ flex-wrap: wrap; gap: 10px; }} .topbar img.dirisa {{ height: 40px; }} .topbar img.ul {{ height: 46px; }}
@@ -154,7 +189,7 @@ def page_header(title, subtitle):
     st.markdown(f"<div class='pagehead'><h2>{title}</h2><p>{subtitle}</p></div>", unsafe_allow_html=True)
 
 
-def kpi(col, label, value, note, colour=INK):
+def kpi(col, label, value, note, colour="var(--ink)"):
     col.markdown(f"<div class='kpi'><div class='label'>{label}</div><div class='value' style='color:{colour}'>"
                  f"{value}</div><div class='note'>{note}</div></div>", unsafe_allow_html=True)
 
@@ -164,7 +199,7 @@ def panel(html, warn=False):
 
 
 def info_card(col, icon, title, body):
-    col.markdown(f"<div class='info'><div class='icon'>{icon}</div><h4>{title}</h4>{body}</div>",
+    col.markdown(f"<div class='info'><div class='icon msr'>{icon}</div><h4>{title}</h4>{body}</div>",
                  unsafe_allow_html=True)
 
 
@@ -204,12 +239,13 @@ def by_province(df):
 
 
 def chart(fig, height=360):
+    # Text and grid colours come from Streamlit's chart theme, so they follow light / dark mode.
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="rgba(0,0,0,0)",
-                      paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15, color=INK),
+                      paper_bgcolor="rgba(0,0,0,0)", font=dict(size=15),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title=None),
                       hoverlabel=dict(font_size=15))
-    fig.update_xaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
-    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
+    fig.update_xaxes(zeroline=False)
+    fig.update_yaxes(zeroline=False)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
@@ -222,12 +258,49 @@ st.markdown(f"""
   <img class="ul" src="{img64('ul_logo.png')}" alt="University of Limpopo">
 </div>""", unsafe_allow_html=True)
 
+# ------------------------------------------------------------------ light / dark mode
+# Streamlit follows the viewer's system setting (both themes are in .streamlit/config.toml). The button saves the
+# other theme in the browser the same way Streamlit's own Settings menu does, and reloads. The script also marks the
+# page html[data-theme] so the custom cards and charts above follow Streamlit's theme.
+PAGE_SLUGS = ["overview", "map", "profile", "priority", "recommendations", "participation", "voter-education", "about"]
+st.html(r"""
+<div class="modebar"><button class="modebtn" id="df-mode" type="button" title="Switch between light and dark mode">
+  <span class="to-dark"><span class="msr">dark_mode</span>Dark mode</span>
+  <span class="to-light"><span class="msr">light_mode</span>Light mode</span>
+</button></div>
+<script>
+(() => {
+  const slugs = %s;
+  const isDark = () => {
+    const app = document.querySelector(".stApp");
+    const rgb = app ? getComputedStyle(app).backgroundColor.match(/\d+/g) : null;
+    return !!rgb && (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) < 128;
+  };
+  const sync = () => { document.documentElement.dataset.theme = isDark() ? "dark" : "light"; };
+  sync();
+  if (window.__dfMode) return;
+  window.__dfMode = true;
+  setInterval(sync, 400);
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#df-mode")) return;
+    const next = isDark() ? "Light" : "Dark";
+    const parts = window.location.pathname.replace(/\/+$/, "").split("/");
+    if (slugs.includes(parts[parts.length - 1])) parts.pop();
+    const base = parts.join("/");
+    for (const path of [base, base + "/", ...slugs.map((s) => base + "/" + s)]) {
+      localStorage.setItem("stActiveTheme-" + (path || "/") + "-v2", JSON.stringify(next));
+    }
+    window.location.reload();
+  });
+})();
+</script>""" % json.dumps(PAGE_SLUGS), unsafe_allow_javascript=True)
+
 
 # ================================================================== 1. overview
 def overview():
     page_header("Overview", "The national picture: where people are lost between being eligible, registering and voting.")
     st.markdown(f"<div style='font-size:1.35rem;font-weight:600;margin:4px 0 14px'>People are lost at two points: "
-                f"<span style='color:{BLUE}'>before registering</span>, and <span style='color:#b27800'>after</span>."
+                "<span class='hl-blue'>before registering</span>, and <span class='hl-amber'>after</span>."
                 "</div>", unsafe_allow_html=True)
 
     adults, reg26 = d["Adults who may vote"].sum(), d["Registered 2026"].sum()
@@ -319,7 +392,7 @@ def map_page():
                               "Predicted turnout 2026: %{customdata[5]}<extra></extra>"))
             fig.add_trace(go.Scattergeo(lon=[None], lat=[None], mode="markers", name=f"{g} ({len(s)})",
                                         marker=dict(size=14, color=GROUP_COLOURS[g], symbol="square")))
-        fig.update_geos(fitbounds="locations", visible=False)
+        fig.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
         chart(fig, 600)
         st.caption("Each municipality coloured by its problem group. Hover (or tap) for its numbers. "
                    "The groups cluster by region, which points to regional causes.")
@@ -452,13 +525,13 @@ def profile():
                             "(COVID recovery scenario).")
             if str(row["Worse than expected in 2021"]) == "True":
                 st.info("**Worse than expected in 2021:** turnout here fell much more than the model predicted. "
-                        "Something local happened that our data cannot see.", icon="🔎")
+                        "Something local happened that our data cannot see.", icon=":material/search:")
             st.caption(NOT_A_CAUSE + " Youth figures are about registration only: the IEC does not publish "
                        "turnout by age.")
 
         if caution:
             st.warning("*More people are registered here than the Census 2022 counted adults. The Census sample is "
-                       "small in this municipality, so its registration rate is not reliable.", icon="⚠️")
+                       "small in this municipality, so its registration rate is not reliable.", icon=":material/warning:")
 
 # ================================================================== 4. priority list
 def priority_list():
@@ -658,21 +731,21 @@ def participation_page():
                 "municipality.")
 
     # ------------------------------------------------------------------ national + provinces
-    st.markdown("### Turnout by province")
+    # same chart as 07_eda Q2: one bar per election, provinces sorted by 2021 turnout (highest at the top)
+    st.markdown("### Turnout fell in every province in 2021")
+    order = bp.sort_values("Turnout 2021")
     fig = go.Figure()
-    for _, row in bp.iterrows():
-        fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[row[f"Turnout {y}"] for y in (2011, 2016, 2021)],
-                                 name=row["Province"], mode="lines+markers", line=dict(color="#b7c3dc", width=1.6),
-                                 marker=dict(size=6), showlegend=False,
-                                 hovertemplate=row["Province"] + " %{x}: %{y:.1%}<extra></extra>"))
-    fig.add_trace(go.Scatter(x=[2011, 2016, 2021], y=[n[f"turnout_{y}"] for y in (2011, 2016, 2021)], name="National",
-                             mode="lines+markers+text", text=[pct(n[f"turnout_{y}"], 1) for y in (2011, 2016, 2021)],
-                             textposition="top center", line=dict(color=NAVY, width=4), marker=dict(size=11),
-                             hovertemplate="National %{x}: %{y:.1%}<extra></extra>"))
-    fig.update_yaxes(tickformat=".0%", title="Turnout (votes ÷ registered)")
-    fig.update_xaxes(tickvals=[2011, 2016, 2021])
-    chart(fig, 420)
-    st.caption("Navy: national. Light lines: the nine provinces (hover for names).")
+    for y in (2021, 2016, 2011):                     # drawn bottom-up, so 2011 sits on top within each province
+        fig.add_trace(go.Bar(y=order["Province"], x=order[f"Turnout {y}"], orientation="h", name=str(y),
+                             marker_color=YEAR_COLOURS[y], text=[pct(v, 1) for v in order[f"Turnout {y}"]],
+                             textposition="outside", cliponaxis=False, textfont=dict(size=13),
+                             hovertemplate="%{y} " + str(y) + ": %{x:.1%}<extra></extra>"))
+    fig.update_layout(barmode="group", bargap=0.22, bargroupgap=0.05, legend_traceorder="reversed")
+    fig.update_xaxes(tickformat=".0%", range=[0, 0.8], title="Turnout (votes ÷ registered)")
+    fig.update_yaxes(title=None)
+    chart(fig, 640)
+    st.caption(f"Nationally, turnout was {pct(n['turnout_2011'], 1)} (2011), {pct(n['turnout_2016'], 1)} (2016) and "
+               f"{pct(n['turnout_2021'], 1)} (2021). Provinces are sorted by 2021 turnout, highest at the top.")
 
     t = bp[["Province", "Turnout 2011", "Turnout 2016", "Turnout 2021", "Participation 2021"]].copy()
     t["Change 2016 → 2021"] = t["Turnout 2021"] - t["Turnout 2016"]
@@ -734,33 +807,33 @@ def voter_education_page():
     FINDER = "https://maps.elections.org.za/vsfinder/"
 
     c = st.columns(2)
-    info_card(c[0], "✅", "Am I registered?",
+    info_card(c[0], "how_to_reg", "Am I registered?",
             f"<p>SMS your ID number to <b>32810</b> (costs R1), or check online on the "
             f"<a href='{PORTAL}' target='_blank'>IEC voter portal</a>. You will see whether you are registered and "
             "where your voting station is.</p>")
-    info_card(c[1], "📍", "Where do I vote?",
+    info_card(c[1], "location_on", "Where do I vote?",
             f"<p>You vote at the voting station where you are registered. Find it with the "
             f"<a href='{FINDER}' target='_blank'>IEC voting station finder</a>, the official IEC app, or by SMS to "
             "<b>32810</b>.</p>")
     st.write("")
     c = st.columns(2)
-    info_card(c[0], "📝", "How do I register?",
+    info_card(c[0], "edit_note", "How do I register?",
             f"<ol><li>You must be a <b>South African citizen</b> aged <b>16 or older</b> (you can vote from 18).</li>"
             f"<li>Register <b>online</b> at <a href='{PORTAL}' target='_blank'>registertovote.elections.org.za</a>, "
             "at your <b>local IEC office</b>, at your voting station during a <b>registration weekend</b>, or at an IEC "
             "registration event.</li><li>Nobody can register for you — you must do it yourself.</li>"
             "<li>Registration closes when the election is proclaimed, so do not wait.</li></ol>")
-    info_card(c[1], "🪪", "What do I need?",
+    info_card(c[1], "badge", "What do I need?",
             "<p>One of these original documents from Home Affairs:</p><ul><li>green, barcoded ID book</li>"
             "<li>smart ID card</li><li>valid Temporary Identity Certificate</li></ul>"
             "<p>No other identification is accepted. Bring the same document when you vote.</p>")
     st.write("")
     c = st.columns(2)
-    info_card(c[0], "🏠", "What if I have moved?",
+    info_card(c[0], "home_work", "What if I have moved?",
             f"<p>You must <b>update your registration</b> when you move to a new address, so that you vote in the ward "
             f"where you now live. You can do this <a href='{PORTAL}' target='_blank'>online</a> or at your local IEC "
             "office before registration closes.</p>")
-    info_card(c[1], "♿", "What are special votes?",
+    info_card(c[1], "accessible", "What are special votes?",
             f"<p>If you cannot vote at your voting station on election day, you can <b>apply for a special vote</b>. "
             "Voters who are physically infirm, disabled or pregnant can ask for a <b>home visit</b>; others vote at "
             f"their voting station before election day. You must apply within the period set by the IEC — see "
@@ -785,16 +858,16 @@ def voter_education_page():
              f"information, visit <a href='{IEC}' target='_blank'>elections.org.za</a>.")
 
 
-# ================================================================== navigation: ☰ Menu (top left)
+# ================================================================== navigation: Menu (top left)
 nav = st.navigation([
-    st.Page(overview, title="Overview", icon="🏠", url_path="overview", default=True),
-    st.Page(map_page, title="Map", icon="🗺️", url_path="map"),
-    st.Page(profile, title="Municipality profile", icon="🏛️", url_path="profile"),
-    st.Page(priority_list, title="Priority list", icon="📋", url_path="priority"),
-    st.Page(recommendations_page, title="Recommendations", icon="💡", url_path="recommendations"),
-    st.Page(participation_page, title="Electoral participation", icon="📊", url_path="participation"),
-    st.Page(voter_education_page, title="Voter education", icon="🗳️", url_path="voter-education"),
-    st.Page(about, title="About", icon="ℹ️", url_path="about"),
+    st.Page(overview, title="Overview", icon=":material/home:", url_path="overview", default=True),
+    st.Page(map_page, title="Map", icon=":material/map:", url_path="map"),
+    st.Page(profile, title="Municipality profile", icon=":material/account_balance:", url_path="profile"),
+    st.Page(priority_list, title="Priority list", icon=":material/format_list_numbered:", url_path="priority"),
+    st.Page(recommendations_page, title="Recommendations", icon=":material/lightbulb:", url_path="recommendations"),
+    st.Page(participation_page, title="Electoral participation", icon=":material/bar_chart:", url_path="participation"),
+    st.Page(voter_education_page, title="Voter education", icon=":material/how_to_vote:", url_path="voter-education"),
+    st.Page(about, title="About", icon=":material/info:", url_path="about"),
 ], position="sidebar")
 st.sidebar.caption("The Democratic Funnel · Team UL · DIRISA Student Datathon Challenge 2026")
 nav.run()
