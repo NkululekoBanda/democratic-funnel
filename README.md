@@ -227,6 +227,8 @@ To stop the dashboard, go back to the terminal and press `Ctrl + C`.
 
 **Local setup (Windows; macOS/Linux commands in comments)**
 ```bash
+git clone https://github.com/Thato20-M/democratic-funnel.git
+cd democratic-funnel
 python -m venv .venv
 .venv\Scripts\activate                                # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
